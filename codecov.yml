@@ -1,0 +1,33 @@
+# Codecov configuration for didwebvh-java.
+# See: https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+
+  # Only the JaCoCo report from the Java 25 matrix job is uploaded (see ci.yml).
+  # We keep per-module granularity in the UI.
+  precision: 2
+  round: down
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: true
+
+# Wizard and signing-local are thin adapters; the core module carries the
+# coverage contract.
+ignore:
+  - "**/target/**"
+  - "**/test/**"
+  - "didwebvh-wizard/**"

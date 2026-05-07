@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!--
+        EI_EXPOSE_REP / EI_EXPOSE_REP2: These classes intentionally expose
+        mutable Gson JsonObject references and already-unmodifiable Lists.
+        Deep-copying JsonObject on every access is wasteful for a library,
+        and Collections.unmodifiableList is invisible to SpotBugs analysis.
+    -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+        <Or>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.model.DidDocument"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.model.LogEntry"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.model.Parameters"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.model.ResolveResult"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.witness.WitnessConfig"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.update.UpdateDidConfig"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.update.MigrateDidConfig"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.core.update.DeactivateDidConfig"/>
+            <Class name="io.github.decentralizedidentity.didwebvh.wizard.ConsoleWizardIo"/>
+        </Or>
+    </Match>
+</FindBugsFilter>
