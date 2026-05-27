@@ -91,9 +91,21 @@ public final class LogChainValidator {
                         "missing proof at entry " + (i + 1), activeParams);
             }
             DataIntegrityProof proof = entry.getProof().get(0);
-            // Authorization uses PREVIOUS active keys for i>0 so that key-rotation entries
-            // are authorized by the old key (the new keys only take effect after validation).
-            List<String> signingKeys = (i == 0)
+            // Spec §3.7.5 (lines 1071-1082): the "active updateKeys" that must
+            // authorize an entry depends on whether Key Pre-Rotation is active
+            // for this entry:
+            //   • First entry: the entry's own updateKeys.
+            //   • No pre-rotation: the previous entry's updateKeys
+            //     (the new keys only take effect after validation).
+            //   • Pre-rotation active (previous entry committed a non-empty
+            //     nextKeyHashes): the current entry's own updateKeys. The
+            //     previous entry's nextKeyHashes already pre-committed to those
+            //     keys, so they are the authorized signers for this rotation.
+            List<String> prevNextKeyHashes = activeParams.getNextKeyHashes();
+            boolean preRotationActive = i > 0
+                    && prevNextKeyHashes != null
+                    && !prevNextKeyHashes.isEmpty();
+            List<String> signingKeys = (i == 0 || preRotationActive)
                     ? newActiveParams.getUpdateKeys() : activeParams.getUpdateKeys();
             if (signingKeys == null || signingKeys.isEmpty()) {
                 return ValidationResult.failure(i - 1, i,
@@ -130,17 +142,16 @@ public final class LogChainValidator {
                 }
             }
 
-            // 10. Pre-rotation: if previous entry set nextKeyHashes and this entry rotates keys
-            if (i > 0 && entryParams.getUpdateKeys() != null) {
-                List<String> prevNextKeyHashes = activeParams.getNextKeyHashes();
-                if (prevNextKeyHashes != null && !prevNextKeyHashes.isEmpty()) {
-                    for (String key : entryParams.getUpdateKeys()) {
-                        String hash = PreRotationHashGenerator.generateHash(key);
-                        if (!prevNextKeyHashes.contains(hash)) {
-                            return ValidationResult.failure(i - 1, i,
-                                    "updateKey hash not in previous nextKeyHashes at entry " + (i + 1),
-                                    activeParams);
-                        }
+            // 10. Pre-rotation: if previous entry set nextKeyHashes and this entry rotates keys,
+            //     the new updateKeys must hash-match the previously committed nextKeyHashes
+            //     (spec §3.7.7, lines 1119-1123).
+            if (preRotationActive && entryParams.getUpdateKeys() != null) {
+                for (String key : entryParams.getUpdateKeys()) {
+                    String hash = PreRotationHashGenerator.generateHash(key);
+                    if (!prevNextKeyHashes.contains(hash)) {
+                        return ValidationResult.failure(i - 1, i,
+                                "updateKey hash not in previous nextKeyHashes at entry " + (i + 1),
+                                activeParams);
                     }
                 }
             }

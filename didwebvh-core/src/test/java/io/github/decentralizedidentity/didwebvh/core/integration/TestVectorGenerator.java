@@ -183,13 +183,15 @@ public final class TestVectorGenerator {
                 .execute();
         DidWebVhState state = DidWebVhState.from(create.getDid(), create.getLogEntry());
 
-        // Rotate: reveal next key and commit another future rotation.
+        // Rotate: reveal next key and commit another future rotation. Per spec
+        // §3.7.5 the rotation entry is signed by its OWN updateKeys (the
+        // pre-committed `next` key), not the prior author key.
         String futureKeyHash = PreRotationHashGenerator.generateHash(
                 multikeyOf(TestVectors.seededSigner(TestVectors.UPDATE_SEED)));
         Parameters rotation = new Parameters()
                 .setUpdateKeys(Collections.singletonList(nextMultikey))
                 .setNextKeyHashes(Collections.singletonList(futureKeyHash));
-        UpdateDidResult rot = DidWebVh.update(state, author)
+        UpdateDidResult rot = DidWebVh.update(state, next)
                 .changedParameters(rotation)
                 .execute();
         for (LogEntry e : rot.getNewEntries()) {

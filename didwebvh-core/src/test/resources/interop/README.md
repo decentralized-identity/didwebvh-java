@@ -19,6 +19,8 @@ verbatim from the upstream `vectors/` tree and exercised by JUnit tests under
 | `multi-update-java-eecc/`  | `vectors/multi-update/java-eecc/`  | java-eecc multi-update log validation |
 | `services-java-eecc/`      | `vectors/services/java-eecc/`      | java-eecc services log validation |
 | `witness-update-java-eecc/`| `vectors/witness-update/java-eecc/`| java-eecc witness-update log validation |
+| `pre-rotation-consume-rust/`     | `vectors/pre-rotation-consume/rust/`     | Pre-rotation: each entry signed by its own (committed) updateKeys |
+| `pre-rotation-consume-java-eecc/`| `vectors/pre-rotation-consume/java-eecc/`| Pre-rotation: each entry signed by its own (committed) updateKeys |
 
 To refresh: bump the SHA above, re-download the listed files
 (`curl -sSL https://raw.githubusercontent.com/swcurran/didwebvh-test-suite/<sha>/<path>`),

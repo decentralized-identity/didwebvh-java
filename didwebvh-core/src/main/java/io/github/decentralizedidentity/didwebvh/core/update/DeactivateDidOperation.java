@@ -37,8 +37,11 @@ final class DeactivateDidOperation {
         LogEntry previous = config.getExistingState().getLastEntry();
 
         if (preRotationActive) {
-            // Intermediate entry: signed by current key (signer), reveals the next keys
-            // so that pre-rotation constraints are satisfied, then clears nextKeyHashes.
+            // Intermediate entry: reveals the next key (committed via nextKeyHashes
+            // in the previous entry) and clears nextKeyHashes to turn off pre-rotation.
+            // Per spec §3.7.5, while pre-rotation is active each entry is signed by its
+            // own updateKeys — so the intermediate is signed by the next-rotation signer,
+            // not the prior signer.
             String nextMultikey = ProofVerifier.extractMultikey(
                     config.getNextRotationSigner().verificationMethod());
             Parameters intermediate = new Parameters()
@@ -46,7 +49,7 @@ final class DeactivateDidOperation {
                     .setNextKeyHashes(Collections.emptyList());
             LogEntry intermediateEntry = UpdateDidOperation.buildEntry(
                     previous,
-                    config.getSigner(),
+                    config.getNextRotationSigner(),
                     null,
                     intermediate);
             newEntries.add(intermediateEntry);
