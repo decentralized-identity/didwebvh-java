@@ -29,11 +29,41 @@ jobs:
         run: ./mvnw -B versions:set -DnewVersion=${GITHUB_REF_NAME#v} -DgenerateBackupPoms=false
 
       - name: Publish to Maven Central
-        run: ./mvnw clean deploy -P release -B --no-transfer-progress -DskipTests
         env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
+          OSSRH_USERNAME_RAW: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_TOKEN_RAW: ${{ secrets.OSSRH_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+
+          # Central Portal's User Token gives a cleartext (namecode, password) pair
+          # that goes into settings.xml as <username>/<password>. Maven does the
+          # Basic-Auth base64 encoding itself. If OSSRH_TOKEN is already a
+          # base64(user:pass) bearer-style string, Maven would double-encode it
+          # and the Portal returns 401. Detect that form and decode it.
+          OSSRH_USERNAME="$OSSRH_USERNAME_RAW"
+          OSSRH_TOKEN="$OSSRH_TOKEN_RAW"
+          shape="raw cleartext password"
+          if decoded=$(printf %s "$OSSRH_TOKEN_RAW" | base64 -d 2>/dev/null) \
+             && [[ "$decoded" == *:* ]] \
+             && [[ "$decoded" =~ ^[[:print:]]+$ ]]; then
+            decoded_user="${decoded%%:*}"
+            decoded_pass="${decoded#*:}"
+            if [[ -n "$decoded_user" && -n "$decoded_pass" ]]; then
+              shape="base64(user:pass) — decoded for Maven"
+              OSSRH_USERNAME="$decoded_user"
+              OSSRH_TOKEN="$decoded_pass"
+              if [[ -n "$OSSRH_USERNAME_RAW" && "$OSSRH_USERNAME_RAW" != "$decoded_user" ]]; then
+                echo "::warning::OSSRH_USERNAME secret does not match the user portion of the decoded OSSRH_TOKEN; using the decoded value."
+              fi
+            fi
+          fi
+          echo "::add-mask::$OSSRH_USERNAME"
+          echo "::add-mask::$OSSRH_TOKEN"
+          echo "OSSRH_TOKEN shape detected: $shape"
+          export OSSRH_USERNAME OSSRH_TOKEN
+
+          ./mvnw clean deploy -P release -B --no-transfer-progress -DskipTests
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
