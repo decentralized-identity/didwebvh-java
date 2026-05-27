@@ -133,7 +133,9 @@ class WitnessValidatorTest {
                 Collections.singletonList(entry), proofs, 0);
 
         assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).contains("missing witness proof");
+        // Spec §3.7.8: proofs whose versionId is not in the published log are
+        // ignored. With no usable proofs, the threshold is unmet.
+        assertThat(result.getFailureReason()).contains("insufficient witness proofs");
     }
 
     @Test
