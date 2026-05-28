@@ -283,10 +283,13 @@ class LogChainValidatorTest {
                 .execute();
         LogEntry e1 = create.getLogEntry();
 
-        // Rotation is signed by the OLD signer (still active); it commits new key.
+        // Per spec §3.7.5 (lines 1078-1082), while pre-rotation is active each
+        // log entry is signed by the keys from the CURRENT entry — the new
+        // signer, not the old one. The previous entry pre-committed to this
+        // key via nextKeyHashes.
         Parameters rotateParams = new Parameters()
                 .setUpdateKeys(Collections.singletonList(multikey2));
-        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer, rotateParams, null);
+        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer2, rotateParams, null);
 
         ValidationResult vr = validator.validate(Arrays.asList(e1, e2), create.getDid());
         assertThat(vr.isValid()).isTrue();
@@ -305,13 +308,15 @@ class LogChainValidatorTest {
                 .execute();
         LogEntry e1 = create.getLogEntry();
 
-        // Try to rotate to a different key (not the committed one)
+        // Try to rotate to a different key (not the committed one). Pre-rotation
+        // makes the new entry's own updateKeys the active signing keys, so the
+        // entry must be self-signed by signer3 to clear the authorization check
+        // and reach the rotation-hash mismatch (the actual interesting failure).
         Signer signer3 = makeTestSigner();
         String multikey3 = extractMultikey(signer3.verificationMethod());
         Parameters wrongRotate = new Parameters()
                 .setUpdateKeys(Collections.singletonList(multikey3));
-        // Sign with signer (still the active key) to get past auth check
-        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer, wrongRotate, null);
+        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer3, wrongRotate, null);
 
         ValidationResult vr = validator.validate(Arrays.asList(e1, e2), create.getDid());
 
@@ -502,6 +507,55 @@ class LogChainValidatorTest {
                 .buildHashData(proof, doc);
         byte[] signature = s.sign(hashData);
         return proof.setProofValue(Base58Btc.encodeMultibase(signature));
+    }
+
+    @Test
+    void preRotationOmitUpdateKeysFails() {
+        // Spec §3.7.7 (and negative-pre-rotation-omit-updatekeys): when the
+        // previous entry committed nextKeyHashes, the next entry MUST present
+        // updateKeys. Omitting it must not let the old key keep signing.
+        Signer signer2 = makeTestSigner();
+        String hash2 = PreRotationHashGenerator.generateHash(
+                extractMultikey(signer2.verificationMethod()));
+
+        CreateDidResult create = DidWebVh.create("example.com", signer)
+                .nextKeyHashes(Collections.singletonList(hash2))
+                .execute();
+        LogEntry e1 = create.getLogEntry();
+
+        // Entry 2 omits updateKeys entirely AND is signed by the old key.
+        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer, null, null);
+
+        ValidationResult vr = validator.validate(Arrays.asList(e1, e2), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("updateKeys");
+        assertThat(vr.getFailureReason()).containsIgnoringCase("pre-rotation");
+    }
+
+    @Test
+    void portableScidSwapFails() {
+        // Spec §portability (and negative-portable-scid-swap): SCID component
+        // of state.id MUST equal parameters.scid; portability changes
+        // host/path only.
+        CreateDidResult create = DidWebVh.create("example.com", signer)
+                .portable(true)
+                .execute();
+        LogEntry e1 = create.getLogEntry();
+
+        // Build a second entry whose state.id has a different SCID segment.
+        JsonObject state2 = e1.getState().deepCopy();
+        String originalId = state2.get("id").getAsString();
+        String[] parts = originalId.split(":");
+        parts[2] = "QmAttackerChosenSCID000000000000000000000000000";
+        state2.addProperty("id", String.join(":", parts));
+
+        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer, null, state2);
+
+        ValidationResult vr = validator.validate(Arrays.asList(e1, e2), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("SCID");
     }
 
     @Test

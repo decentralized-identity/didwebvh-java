@@ -1,14 +1,25 @@
 package io.github.decentralizedidentity.didwebvh.core.witness;
 
+import com.google.gson.annotations.JsonAdapter;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 /** Witness configuration: a threshold and a list of witnesses. */
+@JsonAdapter(WitnessConfigTypeAdapter.class)
 public final class WitnessConfig {
 
-    private final int threshold;
-    private final List<WitnessEntry> witnesses;
+    private int threshold;
+    private List<WitnessEntry> witnesses = Collections.emptyList();
+
+    // No-args constructor lets Gson populate the type via reflection without
+    // hitting sun.misc.Unsafe.allocateInstance, which would skip field
+    // initializers and leave `witnesses` null. Other implementations
+    // (Python, TS) serialise an empty `witness: {}` object when no witnesses
+    // are configured, so the deserializer must produce a usable empty config.
+    public WitnessConfig() {
+    }
 
     public WitnessConfig(int threshold, List<WitnessEntry> witnesses) {
         this.threshold = threshold;

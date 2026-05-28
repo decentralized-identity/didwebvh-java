@@ -7,29 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-05-06
+## [0.3.0] - 2026-05-28
 
-### Changed
-- **Namespace migration**:
-  Java package namespace migrated from
-  `io.github.ivir3zam.*` to
-  `io.github.decentralizedidentity.*` to reflect the new project
-  ownership and align with the GitHub organization.
-- **Maven coordinates update**:
-  `groupId` changed from `io.github.ivir3zam` to
-  `io.github.decentralizedidentity` across all modules to match the
-  new namespace and publishing coordinates.
-- **Repository migration**:
-  project moved from a personal repository to the
-  `decentralized-identity` GitHub organization; SCM metadata,
-  documentation links, and issue tracking URLs updated accordingly.
+This release closes the failures reported by the
+[did:webvh interop test suite](https://github.com/swcurran/didwebvh-test-suite)
+against the v0.2.0 line (see issue #2).
+
+### Added
+- **Negative interop test vectors** vendored from the upstream
+  did:webvh test suite under
+  `didwebvh-core/src/test/resources/interop/`
+  (`basic-create/python`, `basic-update/ts`, full `java-eecc` log
+  set, `pre-rotation-consume/{rust,java-eecc}`,
+  `witness-update/rust`, `witness-threshold/rust`, and
+  `negative-cross-did-witness-replay/ts`), each exercised by a
+  dedicated JUnit test under `didwebvh-core/.../interop/`.
+- **Implicit `#files` and `#whois` services in resolved DID
+  Documents** (spec §3.8 and §3.9): the resolver now emits a
+  `relativeRef` `#files` service and a
+  `LinkedVerifiablePresentation` `#whois` service unless the
+  controller has already declared services with the same id. The
+  shared logic lives in `didweb.ImplicitServices` and is also
+  reused by `DidWebPublisher`.
 
 ### Fixed
-- **Post-migration build issues**:
-  resolved inconsistencies caused by outdated package imports and
-  Maven coordinates after the namespace and repository migration.
+- **Cross-DID witness-proof replay** (spec §3.7.5, lines 884-889):
+  when the `witness` parameter is set to `{}` while witnesses were
+  active, the transition entry MUST itself be witnessed by the
+  prior witnesses. `WitnessValidator` was merging the empty config
+  in first and skipping the entry as inactive, which let an
+  attacker disable witnessing and replay a stale (or cross-DID)
+  proof for an earlier entry. The validator now tracks the prior
+  config and, on a witness-off transition, requires approval from
+  the prior witnesses.
+- **`witness: {}` round-trip across implementations**: Python and
+  TS serialise an empty `"witness": {}` object in parameters when
+  no witnesses are configured. Gson was instantiating
+  `WitnessConfig` via `Unsafe.allocateInstance`, bypassing the
+  constructor and leaving `witnesses` null — every call to
+  `isActive()` / `getWitnesses()` then NPE'd on the first
+  Python/TS log entry. Java was also re-serialising the empty
+  config as `{"threshold":0,"witnesses":[]}` instead of `{}`,
+  producing a different JCS canonical form for SCID, entry-hash
+  and proof computation. Added a no-arg constructor (so Gson uses
+  `Constructor.newInstance`) and a `WitnessConfigTypeAdapter` that
+  round-trips the empty-object form.
+- **Pre-rotation entries authorized against the wrong key set**
+  (spec §3.7.5): when the previous entry committed a
+  `nextKeyHashes`, the active updateKeys for the current entry are
+  the current entry's own `updateKeys`, not the previous entry's.
+  `LogChainValidator` was unconditionally using the previous
+  entry, failing every `pre-rotation-consume` log from rust and
+  java-eecc. `DeactivateDidOperation` made the same mistake when
+  emitting its intermediate pre-rotation-consuming entry; it now
+  signs that entry with `nextRotationSigner`. Regenerated
+  `pre-rotation-log.jsonl` under the corrected rules.
+- **Witness-proof pruning and bare-multikey witness ids** (spec
+  §3.7.8): a witness proof at versionId V implicitly approves all
+  prior log entries, and the DID Controller SHOULD prune
+  `did-witness.json` to retain only the latest proof per witness.
+  `WitnessValidator` required an exact-versionId proof per entry
+  and failed with "missing witness proof" against the Rust pruned
+  files. It also compared witness ids as `did:key:<multikey>`
+  against the Rust implementation's bare-multikey form, yielding 0
+  authorized proofs. The validator now pre-verifies all proofs
+  once, counts distinct authorized witnesses per entry, and
+  matches witness ids by multikey portion to accept both
+  `did:key:z6Mk…` and bare `z6Mk…` forms.
+- **Pre-rotation and portable-SCID negative-test gaps** closed for
+  `negative-pre-rotation-omit-updatekeys` and
+  `negative-portable-scid-swap`.
+- **Release auth**: auto-detect and decode base64-encoded
+  `user:pass` `OSSRH_TOKEN` values so Sonatype publishing succeeds
+  with either token form.
 
-## [0.2.0] - 2026-04-21
+### Changed
+- **CI**: GitHub Actions upgraded to versions compatible with
+  Node.js 24, and Node.js 24 is forced in both the CI and release
+  workflows to silence the deprecation warning emitted by older
+  actions on the GHA runners.
+
+## [0.2.0] - 2026-05-06
 
 ### Added
 - **Wizard – Export parallel `did:web` document**: new menu option
@@ -49,6 +107,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the library can be used standalone without the wizard.
 
 ### Changed
+- **Project relocation to `decentralized-identity` GitHub
+  organization**: Java package namespace migrated from
+  `io.github.ivir3zam.*` to `io.github.decentralizedidentity.*` and
+  Maven `groupId` changed from `io.github.ivir3zam` to
+  `io.github.decentralized-identity` across all modules. SCM
+  metadata, documentation links, and issue tracking URLs updated
+  accordingly.
 - **Wizard – update flow preserves existing state**:
   - Witness configure seeds from the active `WitnessConfig` so existing
     witnesses are kept and the threshold can span the full merged set.
@@ -123,5 +188,7 @@ Initial public release of `didwebvh-java`, a Java 11+ implementation of the
   `.github/workflows/release.yml` that publishes to Sonatype Central on
   tag push (`v*`) and attaches JARs to the GitHub Release.
 
-[Unreleased]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/decentralized-identity/didwebvh-java/releases/tag/v0.1.0

@@ -133,7 +133,9 @@ class WitnessValidatorTest {
                 Collections.singletonList(entry), proofs, 0);
 
         assertThat(result.isValid()).isFalse();
-        assertThat(result.getFailureReason()).contains("missing witness proof");
+        // Spec §3.7.8: proofs whose versionId is not in the published log are
+        // ignored. With no usable proofs, the threshold is unmet.
+        assertThat(result.getFailureReason()).contains("insufficient witness proofs");
     }
 
     @Test
@@ -171,6 +173,39 @@ class WitnessValidatorTest {
                 new WitnessProofCollection(Collections.emptyList()), 0);
 
         assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    void crossDidWitnessReplayRejected() {
+        // negative-cross-did-witness-replay: DID-A's first entry needs a
+        // witness proof. Attacker injects DID-B's genuine proof for a
+        // versionId from DID-B's log; later DID-A entries turn witnessing
+        // off so no later proof carries the threshold for entry 1. The
+        // resolver MUST ignore proofs whose versionId is not in DID-A's
+        // published log (spec §3.7.8) — leaving the threshold unmet.
+        WitnessConfig wc = new WitnessConfig(1,
+                Collections.singletonList(new WitnessEntry(witnessDid1)));
+        CreateDidResult create = DidWebVh.create("example.com", authorSigner)
+                .witness(wc)
+                .execute();
+        LogEntry e1 = create.getLogEntry();
+
+        // Entry 2 disables witnessing for the remainder of the log.
+        Parameters witnessOff = new Parameters().setWitness(WitnessConfig.empty());
+        LogEntry e2 = LogChainValidatorTest.buildUpdateEntry(
+                e1, create.getDid(), authorSigner, witnessOff, null);
+
+        // The "lifted" proof is a real signature by the shared witness over
+        // a versionId from another DID's log — i.e., a versionId NOT present
+        // in this DID's log.
+        WitnessProofCollection foreignProofs = makeWitnessProofs(
+                "3-zForeignDidEntryHashThatDoesNotExistInThisLog", witnessSigner1);
+
+        WitnessValidationResult result = validator.validate(
+                Arrays.asList(e1, e2), foreignProofs, 0);
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).contains("insufficient witness proofs");
     }
 
     @Test
