@@ -140,11 +140,27 @@ public final class LogChainValidator {
                 if (expectedDid == null || docId.equals(expectedDid)) {
                     didFound = true;
                 }
+                // Portability: parameters.scid is the cryptographic anchor and
+                // MUST NOT change across the log. The SCID component of
+                // state.id is the third colon-delimited segment of the DID URL
+                // (did:webvh:<scid>:<host>…). Portability moves host/path only;
+                // any entry whose state.id SCID differs from parameters.scid is
+                // rejected, regardless of portable / alsoKnownAs.
+                String activeScid = newActiveParams.getScid();
+                if (activeScid != null) {
+                    String[] parts = docId.split(":");
+                    if (parts.length >= 3 && !activeScid.equals(parts[2])) {
+                        return ValidationResult.failure(i - 1, i,
+                                "state.id SCID component does not match parameters.scid at entry "
+                                        + (i + 1), activeParams);
+                    }
+                }
             }
 
             // 10. Pre-rotation: if previous entry set nextKeyHashes and this entry rotates keys,
             //     the new updateKeys must hash-match the previously committed nextKeyHashes
-            //     (spec §3.7.7, lines 1119-1123).
+            //     (spec §3.7.7, lines 1119-1123). The updateKeys-required guard is enforced
+            //     in validateParameters before we ever get here.
             if (preRotationActive && entryParams.getUpdateKeys() != null) {
                 for (String key : entryParams.getUpdateKeys()) {
                     String hash = PreRotationHashGenerator.generateHash(key);
@@ -217,6 +233,17 @@ public final class LogChainValidator {
             if (Boolean.TRUE.equals(entryDelta.getPortable())
                     && !Boolean.TRUE.equals(prevActive.getPortable())) {
                 return "portable can only be set to true in first entry";
+            }
+            // Pre-rotation: if the previous entry committed nextKeyHashes,
+            // this entry MUST present a non-empty updateKeys. Otherwise the
+            // pre-rotation guarantee is defeated by inheriting the old keys.
+            // (Spec §3.7.7; see negative-pre-rotation-omit-updatekeys.)
+            List<String> prevNextHashes = prevActive.getNextKeyHashes();
+            if (prevNextHashes != null && !prevNextHashes.isEmpty()
+                    && (entryDelta.getUpdateKeys() == null
+                            || entryDelta.getUpdateKeys().isEmpty())) {
+                return "updateKeys MUST be present and non-empty when previous entry "
+                        + "committed nextKeyHashes (pre-rotation active)";
             }
         }
 

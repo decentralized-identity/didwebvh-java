@@ -190,6 +190,61 @@ class LogProcessorTest {
     }
 
     @Test
+    void crossDidWitnessReplayRejected() {
+        // negative-cross-did-witness-replay (didwebvh-test-suite): an attacker
+        // controls DID-A's hosting and lifts a genuine witness proof from
+        // DID-B (which shares a witness W with DID-A) into DID-A's
+        // did-witness.json. DID-A's later entries set witness:{} to disable
+        // witnessing so no DID-A entry will direct-verify against an
+        // entry-hash from DID-A's log. The resolver MUST reject the replayed
+        // proof because its versionId is not in DID-A's published log
+        // (spec §3.7.8). Expected error: invalidDid.
+        Signer authorA = makeTestSigner();
+        Signer authorB = makeTestSigner();
+        Signer sharedWitness = makeTestSigner();
+        String sharedWitnessDid = "did:key:" + extractMultikey(
+                sharedWitness.verificationMethod());
+        WitnessConfig sharedConfig = new WitnessConfig(1,
+                Collections.singletonList(new WitnessEntry(sharedWitnessDid)));
+
+        // Build DID-B's 3rd entry to obtain a real versionId the witness
+        // genuinely signed over. We only need DID-B's versionId — we never
+        // resolve DID-B.
+        CreateDidResult createB = DidWebVh.create("other.example.com", authorB)
+                .witness(sharedConfig)
+                .execute();
+        LogEntry b1 = createB.getLogEntry();
+        LogEntry b2 = buildUpdateEntry(b1, authorB, null, null);
+        LogEntry b3 = buildUpdateEntry(b2, authorB, null, null);
+        WitnessProofCollection didBProofs = witnessProofs(
+                b3.getVersionId(), sharedWitness);
+
+        // Build DID-A: entry 1 has witnessing on, entry 2 disables it,
+        // entry 3 inherits the disabled config.
+        CreateDidResult createA = DidWebVh.create("example.com", authorA)
+                .witness(sharedConfig)
+                .execute();
+        LogEntry a1 = createA.getLogEntry();
+        Parameters witnessOff = new Parameters().setWitness(WitnessConfig.empty());
+        LogEntry a2 = buildUpdateEntry(a1, authorA, witnessOff, null);
+        LogEntry a3 = buildUpdateEntry(a2, authorA, null, null);
+
+        String didALog = a1.toJsonLine() + "\n"
+                + a2.toJsonLine() + "\n"
+                + a3.toJsonLine() + "\n";
+
+        // did-witness.json for DID-A contains DID-B's proof verbatim — a real
+        // signature, but the versionId is from DID-B's log, not DID-A's.
+        String didAWitnessJson = JsonSupport.compact().toJson(didBProofs.getEntries());
+
+        assertThatThrownBy(() -> processor.process(didALog, didAWitnessJson,
+                createA.getDid(), ResolveOptions.defaults()))
+                .isInstanceOf(ResolutionException.class)
+                .satisfies(t -> assertThat(((ResolutionException) t).getError())
+                        .isEqualTo("invalidDid"));
+    }
+
+    @Test
     void problemDetailsUseDidwebvhProblemType() {
         ResolutionException exception = new ResolutionException(
                 "Bad log", "invalidDid");
