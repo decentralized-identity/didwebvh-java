@@ -18,12 +18,6 @@ import java.util.Set;
  */
 public final class DidWebPublisher {
 
-    private static final String FILES_ID = "#files";
-    private static final String WHOIS_ID = "#whois";
-    private static final String WELL_KNOWN_SEGMENT = "/.well-known/";
-    private static final String DID_LOG_FILENAME = "did.jsonl";
-    private static final String WHOIS_FILENAME = "whois.vp";
-
     private DidWebPublisher() {
     }
 
@@ -46,13 +40,12 @@ public final class DidWebPublisher {
 
         DidWebVhUrl parsed = DidWebVhUrl.parse(didWebVh);
         String scidPrefix = "did:webvh:" + parsed.getScid() + ":";
-        String httpsBase = httpsBase(didWebVh);
 
         // Step 1: start from the resolved did:webvh DIDDoc (deep copy to avoid mutation).
         JsonObject doc = resolvedWebVh.asJsonObject().deepCopy();
 
         // Step 2: add implicit #files and #whois services if not already present.
-        addImplicitServices(doc, didWebVh, httpsBase);
+        ImplicitServices.addTo(doc, didWebVh);
 
         // Step 3: text-replace did:webvh:<scid>: with did:web: across the whole document.
         String replaced = doc.toString().replace(scidPrefix, "did:web:");
@@ -72,73 +65,6 @@ public final class DidWebPublisher {
      */
     public static String toDidWebUrl(String didWebVhUrl) {
         return DidToHttpsTransformer.toDidWebUrl(didWebVhUrl);
-    }
-
-    /**
-     * Compute the HTTPS base URL for implicit service endpoints: the DID-to-HTTPS
-     * URL with the trailing {@code did.jsonl} filename removed and any
-     * {@code .well-known/} segment stripped.
-     */
-    private static String httpsBase(String didWebVh) {
-        String didLogUrl = DidToHttpsTransformer.toHttpsUrl(didWebVh);
-        // Strip the trailing did.jsonl filename.
-        String base = didLogUrl.substring(0,
-                didLogUrl.length() - DID_LOG_FILENAME.length());
-        // Omit the ".well-known/" segment if present.
-        int idx = base.indexOf(WELL_KNOWN_SEGMENT);
-        if (idx >= 0) {
-            base = base.substring(0, idx + 1) + base.substring(idx + WELL_KNOWN_SEGMENT.length());
-        }
-        return base;
-    }
-
-    private static void addImplicitServices(JsonObject doc, String didWebVh,
-                                            String httpsBase) {
-        JsonArray services;
-        JsonElement existing = doc.get("service");
-        if (existing != null && existing.isJsonArray()) {
-            services = existing.getAsJsonArray();
-        } else {
-            services = new JsonArray();
-            doc.add("service", services);
-        }
-
-        if (!hasServiceWithId(services, didWebVh, FILES_ID)) {
-            JsonObject files = new JsonObject();
-            files.addProperty("id", didWebVh + FILES_ID);
-            files.addProperty("type", "relativeRef");
-            files.addProperty("serviceEndpoint", httpsBase);
-            services.add(files);
-        }
-
-        if (!hasServiceWithId(services, didWebVh, WHOIS_ID)) {
-            JsonObject whois = new JsonObject();
-            whois.addProperty("@context",
-                    "https://identity.foundation/linked-vp/contexts/v1");
-            whois.addProperty("id", didWebVh + WHOIS_ID);
-            whois.addProperty("type", "LinkedVerifiablePresentation");
-            whois.addProperty("serviceEndpoint", httpsBase + WHOIS_FILENAME);
-            services.add(whois);
-        }
-    }
-
-    private static boolean hasServiceWithId(JsonArray services, String did,
-                                            String fragment) {
-        String absolute = did + fragment;
-        for (JsonElement el : services) {
-            if (!el.isJsonObject()) {
-                continue;
-            }
-            JsonElement idEl = el.getAsJsonObject().get("id");
-            if (idEl == null || idEl.isJsonNull()) {
-                continue;
-            }
-            String id = idEl.getAsString();
-            if (fragment.equals(id) || absolute.equals(id)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static void addAlsoKnownAs(JsonObject doc, String didWebVh,

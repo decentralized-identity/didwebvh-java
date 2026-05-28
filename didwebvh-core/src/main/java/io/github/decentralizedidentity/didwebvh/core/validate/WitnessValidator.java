@@ -62,10 +62,29 @@ public final class WitnessValidator {
             LogEntry entry = entries.get(i);
             Parameters entryParams = entry.getParameters() != null
                     ? entry.getParameters() : new Parameters();
+            WitnessConfig priorConfig = activeParams.getWitness();
             activeParams = activeParams.merge(entryParams);
+            WitnessConfig afterConfig = activeParams.getWitness();
 
-            WitnessConfig witnessConfig = activeParams.getWitness();
-            if (witnessConfig == null || !witnessConfig.isActive()) {
+            // Spec §3.7.5 (lines 884-889): when the witness parameter is set to
+            // {} while witnesses were previously active, that log entry MUST be
+            // witnessed by the prior witnesses. Otherwise an attacker could
+            // legitimately disable witnessing in a forged entry and slip the
+            // change past the resolver. Skip only when no witnessing was
+            // active either side of this entry.
+            boolean priorActive = priorConfig != null && priorConfig.isActive();
+            boolean afterActive = afterConfig != null && afterConfig.isActive();
+            boolean witnessChanged = entryParams.getWitness() != null;
+            WitnessConfig witnessConfig;
+            if (afterActive) {
+                // Per spec, "from {} to active" means the new config is
+                // immediately active and approves this entry.
+                witnessConfig = afterConfig;
+            } else if (priorActive && witnessChanged) {
+                // Transition from active to {}: the prior witnesses must
+                // approve this transition.
+                witnessConfig = priorConfig;
+            } else {
                 continue;
             }
 

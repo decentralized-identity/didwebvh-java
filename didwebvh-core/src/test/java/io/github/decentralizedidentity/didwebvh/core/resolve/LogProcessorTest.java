@@ -29,6 +29,32 @@ class LogProcessorTest {
     private final LogProcessor processor = new LogProcessor();
 
     @Test
+    void resolvedDocumentIncludesImplicitFilesAndWhoisServices() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+
+        ResolveResult result = processor.process(create.getLogLine(), null,
+                create.getDid(), ResolveOptions.defaults());
+
+        com.google.gson.JsonArray services = result.getDidDocument().asJsonObject()
+                .getAsJsonArray("service");
+        assertThat(services).isNotNull();
+        assertThat(services).hasSize(2);
+
+        JsonObject files = services.get(0).getAsJsonObject();
+        assertThat(files.get("id").getAsString()).isEqualTo(create.getDid() + "#files");
+        assertThat(files.get("type").getAsString()).isEqualTo("relativeRef");
+        assertThat(files.get("serviceEndpoint").getAsString())
+                .isEqualTo("https://example.com/");
+
+        JsonObject whois = services.get(1).getAsJsonObject();
+        assertThat(whois.get("id").getAsString()).isEqualTo(create.getDid() + "#whois");
+        assertThat(whois.get("type").getAsString()).isEqualTo("LinkedVerifiablePresentation");
+        assertThat(whois.get("serviceEndpoint").getAsString())
+                .isEqualTo("https://example.com/whois.vp");
+    }
+
+    @Test
     void resolvesLatestEntryWithMetadata() {
         Signer signer = makeTestSigner();
         CreateDidResult create = DidWebVh.create("example.com", signer)

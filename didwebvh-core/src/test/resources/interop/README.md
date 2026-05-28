@@ -23,6 +23,7 @@ verbatim from the upstream `vectors/` tree and exercised by JUnit tests under
 | `pre-rotation-consume-java-eecc/`| `vectors/pre-rotation-consume/java-eecc/`| Pre-rotation: each entry signed by its own (committed) updateKeys |
 | `witness-update-rust/`           | `vectors/witness-update/rust/`           | Witness proof pruning: single latest proof covers all prior entries |
 | `witness-threshold-rust/`        | `vectors/witness-threshold/rust/`        | Witness id as bare multikey (without `did:key:` prefix) |
+| `negative-cross-did-witness-replay-ts/` | `vectors/negative-cross-did-witness-replay/ts/` | Replayed cross-DID witness proof rejected: spec §3.7.5 (lines 884-889) requires the entry that disables witnessing to itself be witnessed by the prior witnesses |
 
 To refresh: bump the SHA above, re-download the listed files
 (`curl -sSL https://raw.githubusercontent.com/swcurran/didwebvh-test-suite/<sha>/<path>`),

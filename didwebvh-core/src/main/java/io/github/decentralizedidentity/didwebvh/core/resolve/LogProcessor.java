@@ -1,8 +1,10 @@
 package io.github.decentralizedidentity.didwebvh.core.resolve;
 
+import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import io.github.decentralizedidentity.didwebvh.core.ResolutionException;
 import io.github.decentralizedidentity.didwebvh.core.ValidationException;
+import io.github.decentralizedidentity.didwebvh.core.didweb.ImplicitServices;
 import io.github.decentralizedidentity.didwebvh.core.model.DidDocument;
 import io.github.decentralizedidentity.didwebvh.core.model.JsonSupport;
 import io.github.decentralizedidentity.didwebvh.core.model.LogEntry;
@@ -66,7 +68,12 @@ class LogProcessor {
 
         ResolveResult result = new ResolveResult().setMetadata(metadata);
         if (!Boolean.TRUE.equals(selectedParameters.getDeactivated())) {
-            result.setDidDocument(new DidDocument(selected.getState().deepCopy()));
+            // Spec §3.8 and §3.9: the resolved DID Document MUST include the
+            // implicit #files and #whois services unless the controller has
+            // already defined explicit services with the same id.
+            JsonObject state = selected.getState().deepCopy();
+            ImplicitServices.addTo(state, selected.getState().get("id").getAsString());
+            result.setDidDocument(new DidDocument(state));
         }
         return result;
     }
