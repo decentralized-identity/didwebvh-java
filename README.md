@@ -31,9 +31,9 @@ A Java 11+ library for the [did:webvh](https://didwebvh.info/) (DID Web + Verifi
 
 ```xml
 <dependency>
-    <groupId>io.github.decentralizedidentity</groupId>
+    <groupId>io.github.decentralized-identity</groupId>
     <artifactId>didwebvh-java</artifactId>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
 </dependency>
 ```
 
@@ -44,7 +44,7 @@ need the local-key adapter.
 ### Gradle
 
 ```groovy
-implementation 'io.github.decentralized-identity:didwebvh-java:0.2.0'
+implementation 'io.github.decentralized-identity:didwebvh-java:0.3.0'
 ```
 
 ## Library Usage
