@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-05-28
+## [0.3.0] - 2026-05-29
 
 This release closes the failures reported by the
 [did:webvh interop test suite](https://github.com/swcurran/didwebvh-test-suite)
@@ -86,6 +86,11 @@ against the v0.2.0 line (see issue #2).
   Node.js 24, and Node.js 24 is forced in both the CI and release
   workflows to silence the deprecation warning emitted by older
   actions on the GHA runners.
+- **Release notes**: the GitHub Release body is now generated
+  directly from the matching `## [VERSION]` section of this
+  CHANGELOG (with an appended Maven Central coordinate), and the
+  release attaches only the self-contained `didwebvh-wizard.jar`
+  uber-jar — library modules are consumed from Maven Central.
 
 ## [0.2.0] - 2026-05-06
 
