@@ -271,6 +271,101 @@ class LogProcessorTest {
     }
 
     @Test
+    void emptyLogContentMapsToInvalidDid() {
+        assertThatThrownBy(() -> processor.process("", null, null, ResolveOptions.defaults()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("DID log must not be empty")
+                .extracting("error").isEqualTo("invalidDid");
+    }
+
+    @Test
+    void blankOnlyLogMapsToMustContainAtLeastOneEntry() {
+        assertThatThrownBy(() -> processor.process("   \n\n  \n", null, null,
+                ResolveOptions.defaults()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("DID log must not be empty");
+    }
+
+    @Test
+    void malformedLogLineMapsToInvalidDid() {
+        assertThatThrownBy(() -> processor.process("{not-json", null, null,
+                ResolveOptions.defaults()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("Unable to parse DID log entry")
+                .extracting("error").isEqualTo("invalidDid");
+    }
+
+    @Test
+    void unknownVersionIdMapsToInvalidDid() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+
+        assertThatThrownBy(() -> processor.process(create.getLogLine(), null,
+                create.getDid(),
+                ResolveOptions.builder().versionId("999-Qmwrong").build()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("No DID log entry found for versionId");
+    }
+
+    @Test
+    void unknownVersionNumberMapsToInvalidDid() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+
+        assertThatThrownBy(() -> processor.process(create.getLogLine(), null,
+                create.getDid(),
+                ResolveOptions.builder().versionNumber(42).build()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("No DID log entry found for versionNumber");
+    }
+
+    @Test
+    void invalidVersionTimeQueryMapsToInvalidDid() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+
+        assertThatThrownBy(() -> processor.process(create.getLogLine(), null,
+                create.getDid(),
+                ResolveOptions.builder().versionTime("not-a-timestamp").build()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("Invalid versionTime")
+                .extracting("error").isEqualTo("invalidDid");
+    }
+
+    @Test
+    void versionTimeBeforeFirstEntryMapsToInvalidDid() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+
+        String beforeAll = Instant.parse(create.getLogEntry().getVersionTime())
+                .minusSeconds(3600).toString();
+
+        assertThatThrownBy(() -> processor.process(create.getLogLine(), null,
+                create.getDid(),
+                ResolveOptions.builder().versionTime(beforeAll).build()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("No DID log entry found at or before versionTime");
+    }
+
+    @Test
+    void malformedWitnessProofsMapToInvalidDid() {
+        Signer author = makeTestSigner();
+        Signer witness = makeTestSigner();
+        String witnessDid = "did:key:" + extractMultikey(witness.verificationMethod());
+        WitnessConfig witnessConfig = new WitnessConfig(1,
+                Collections.singletonList(new WitnessEntry(witnessDid)));
+        CreateDidResult create = DidWebVh.create("example.com", author)
+                .witness(witnessConfig)
+                .execute();
+
+        assertThatThrownBy(() -> processor.process(create.getLogLine(),
+                "{not-json", create.getDid(), ResolveOptions.defaults()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("Unable to parse witness proofs")
+                .extracting("error").isEqualTo("invalidDid");
+    }
+
+    @Test
     void problemDetailsUseDidwebvhProblemType() {
         ResolutionException exception = new ResolutionException(
                 "Bad log", "invalidDid");

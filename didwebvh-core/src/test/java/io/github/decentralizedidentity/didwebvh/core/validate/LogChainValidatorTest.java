@@ -370,6 +370,70 @@ class LogChainValidatorTest {
     }
 
     @Test
+    void missingScidInFirstEntryFails() {
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        LogEntry original = create.getLogEntry();
+        Parameters noScid = new Parameters()
+                .setMethod(original.getParameters().getMethod())
+                .setUpdateKeys(original.getParameters().getUpdateKeys());
+
+        LogEntry bad = new LogEntry()
+                .setVersionId(original.getVersionId())
+                .setVersionTime(original.getVersionTime())
+                .setParameters(noScid)
+                .setState(original.getState())
+                .setProof(original.getProof());
+
+        ValidationResult vr = validator.validate(
+                Collections.singletonList(bad), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("scid");
+    }
+
+    @Test
+    void missingUpdateKeysInFirstEntryFails() {
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        LogEntry original = create.getLogEntry();
+        Parameters noKeys = new Parameters()
+                .setMethod(original.getParameters().getMethod())
+                .setScid(original.getParameters().getScid())
+                .setUpdateKeys(Collections.emptyList());
+
+        LogEntry bad = new LogEntry()
+                .setVersionId(original.getVersionId())
+                .setVersionTime(original.getVersionTime())
+                .setParameters(noKeys)
+                .setState(original.getState())
+                .setProof(original.getProof());
+
+        ValidationResult vr = validator.validate(
+                Collections.singletonList(bad), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("updateKeys");
+    }
+
+    @Test
+    void methodVersionDecreaseFails() {
+        // Build a chain whose entry 2 declares a method with a lower version
+        // than the active one. compareMethod must reject the downgrade.
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        LogEntry e1 = create.getLogEntry();
+        String activeMethod = e1.getParameters().getMethod();
+        // active is like "did:webvh:1.0" — drop minor by one.
+        String lowerMethod = activeMethod.replaceFirst(":\\d+\\.\\d+$", ":0.9");
+
+        Parameters downgrade = new Parameters().setMethod(lowerMethod);
+        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer, downgrade, null);
+
+        ValidationResult vr = validator.validate(Arrays.asList(e1, e2), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("method version must not decrease");
+    }
+
+    @Test
     void scidInSecondEntryFails() {
         CreateDidResult create = DidWebVh.create("example.com", signer).execute();
         LogEntry e1 = create.getLogEntry();

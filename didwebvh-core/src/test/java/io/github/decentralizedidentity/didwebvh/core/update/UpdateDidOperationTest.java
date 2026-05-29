@@ -242,6 +242,94 @@ class UpdateDidOperationTest {
                 .hasMessageContaining("portable");
     }
 
+    @Test
+    void migration_nullExistingState_throws() {
+        assertThatThrownBy(() -> new MigrateDidConfig(null, signerA, "new.example.com")
+                .execute())
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("existingState is required");
+    }
+
+    @Test
+    void migration_nullSigner_throws() {
+        DidWebVhState state = createPortableState("old.example.com", signerA);
+        assertThatThrownBy(() -> new MigrateDidConfig(state, null, "new.example.com")
+                .execute())
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("signer is required");
+    }
+
+    @Test
+    void migration_nullNewDomain_throws() {
+        DidWebVhState state = createPortableState("old.example.com", signerA);
+        assertThatThrownBy(() -> new MigrateDidConfig(state, signerA, null).execute())
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("newDomain is required");
+    }
+
+    @Test
+    void migration_emptyNewDomain_throws() {
+        DidWebVhState state = createPortableState("old.example.com", signerA);
+        assertThatThrownBy(() -> new MigrateDidConfig(state, signerA, "").execute())
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("newDomain is required");
+    }
+
+    @Test
+    void migration_deactivatedDid_throws() {
+        DidWebVhState state = createPortableState("old.example.com", signerA);
+        UpdateDidResult deactivation = DidWebVh.deactivate(state, signerA).execute();
+        state.appendEntry(deactivation.getLogEntry());
+
+        assertThatThrownBy(() -> DidWebVh.migrate(state, signerA, "new.example.com")
+                .execute())
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("deactivated");
+    }
+
+    @Test
+    void migration_withNewPath_appendsPathSegment() {
+        DidWebVhState state = createPortableState("old.example.com", signerA);
+
+        UpdateDidResult result = DidWebVh.migrate(state, signerA, "new.example.com")
+                .newPath("dids:issuer")
+                .execute();
+        state.appendEntry(result.getLogEntry());
+
+        String newId = state.getLastEntry().getState().get("id").getAsString();
+        assertThat(newId).contains(":new.example.com:dids:issuer");
+    }
+
+    @Test
+    void migration_existingAlsoKnownAsContainsOldDid_isNotDuplicated() {
+        // Seed the document with an alsoKnownAs that already references the
+        // old DID; the migrate op must not append a duplicate.
+        DidWebVhState state = createPortableState("old.example.com", signerA);
+        String oldDid = state.getDid();
+
+        JsonObject docWithAka = state.getLastEntry().getState().deepCopy();
+        JsonArray aka = new JsonArray();
+        aka.add(oldDid);
+        docWithAka.add("alsoKnownAs", aka);
+        UpdateDidResult prep = DidWebVh.update(state, signerA)
+                .newDocument(docWithAka)
+                .execute();
+        state.appendEntry(prep.getLogEntry());
+
+        UpdateDidResult migrated = DidWebVh.migrate(state, signerA, "new.example.com").execute();
+        state.appendEntry(migrated.getLogEntry());
+
+        JsonArray finalAka = state.getLastEntry().getState()
+                .getAsJsonArray("alsoKnownAs");
+        long oldDidCount = 0;
+        for (com.google.gson.JsonElement el : finalAka) {
+            if (oldDid.equals(el.getAsString())) {
+                oldDidCount++;
+            }
+        }
+        assertThat(oldDidCount).as("old DID appears once in alsoKnownAs").isEqualTo(1);
+    }
+
     // -------------------------------------------------------------------------
     // Deactivation
     // -------------------------------------------------------------------------
