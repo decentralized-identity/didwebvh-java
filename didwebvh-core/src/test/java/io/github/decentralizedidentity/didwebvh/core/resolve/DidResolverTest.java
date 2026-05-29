@@ -128,6 +128,145 @@ class DidResolverTest {
         assertThat(resolver).isNotNull();
     }
 
+    @Test
+    void invalidVersionNumberQueryThrows() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        DidResolver resolver = new DidResolver(new StubRemoteDidFetcher(create.getLogLine()),
+                new FileDidFetcher(), new LogProcessor());
+
+        assertThatThrownBy(() -> resolver.resolve(create.getDid() + "?versionNumber=not-a-number"))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("Invalid versionNumber")
+                .extracting("error").isEqualTo("invalidDid");
+    }
+
+    @Test
+    void versionTimeQueryParamIsHonoured() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        LogEntry first = create.getLogEntry();
+        JsonObject secondState = first.getState().deepCopy();
+        secondState.addProperty("updated", "true");
+        LogEntry second = buildUpdateEntry(first, signer, null, secondState);
+        String log = first.toJsonLine() + "\n" + second.toJsonLine();
+
+        DidResolver resolver = new DidResolver(new StubRemoteDidFetcher(log),
+                new FileDidFetcher(), new LogProcessor());
+
+        // versionTime equal to the first entry's time selects the first entry.
+        ResolveResult result = resolver.resolve(
+                create.getDid() + "?versionTime=" + first.getVersionTime());
+
+        assertThat(result.getMetadata().getVersionId()).isEqualTo(first.getVersionId());
+    }
+
+    @Test
+    void proactiveWitnessFetchPullsWitnessFile() {
+        Signer author = makeTestSigner();
+        Signer witness = makeTestSigner();
+        String witnessDid = "did:key:" + extractMultikey(witness.verificationMethod());
+        WitnessConfig witnessConfig = new WitnessConfig(1,
+                Collections.singletonList(new WitnessEntry(witnessDid)));
+        CreateDidResult create = DidWebVh.create("example.com", author)
+                .witness(witnessConfig)
+                .execute();
+        WitnessProofCollection proofs = witnessProofs(
+                create.getLogEntry().getVersionId(), witness);
+        StubRemoteDidFetcher fetcher = new StubRemoteDidFetcher(create.getLogLine(),
+                JsonSupport.compact().toJson(proofs.getEntries()));
+
+        DidResolver resolver = new DidResolver(fetcher, new FileDidFetcher(),
+                new LogProcessor());
+
+        ResolveResult result = resolver.resolve(create.getDid(), ResolveOptions.builder()
+                .witnessFetchMode(ResolveOptions.WitnessFetchMode.PROACTIVE)
+                .build());
+
+        assertThat(result.getMetadata().getWitness()).isEqualTo(witnessConfig);
+        assertThat(fetcher.witnessFetchCount).isEqualTo(1);
+    }
+
+    @Test
+    void proactiveWitnessSwallowsNotFoundForUnwitnessedLog() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        StubRemoteDidFetcher fetcher = new StubRemoteDidFetcher(create.getLogLine());
+
+        DidResolver resolver = new DidResolver(fetcher, new FileDidFetcher(),
+                new LogProcessor());
+
+        ResolveResult result = resolver.resolve(create.getDid(), ResolveOptions.builder()
+                .witnessFetchMode(ResolveOptions.WitnessFetchMode.PROACTIVE)
+                .build());
+
+        // PROACTIVE attempted a witness fetch, but a 404 (notFound) must be
+        // swallowed and the resolve must succeed when the log has no witnesses.
+        assertThat(result.getDidDocument().getId()).isEqualTo(create.getDid());
+        assertThat(fetcher.witnessFetchCount).isEqualTo(1);
+    }
+
+    @Test
+    void proactiveWitnessRethrowsNonNotFoundErrors() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        RemoteDidFetcher fetcher = new RemoteDidFetcher() {
+            @Override public String fetchDidLog(String httpsUrl) {
+                return create.getLogLine();
+            }
+            @Override public String fetchWitnessProofs(String witnessUrl) {
+                throw new ResolutionException("upstream down", "httpError");
+            }
+        };
+        DidResolver resolver = new DidResolver(fetcher, new FileDidFetcher(),
+                new LogProcessor());
+
+        assertThatThrownBy(() -> resolver.resolve(create.getDid(),
+                ResolveOptions.builder()
+                        .witnessFetchMode(ResolveOptions.WitnessFetchMode.PROACTIVE)
+                        .build()))
+                .isInstanceOf(ResolutionException.class)
+                .extracting("error").isEqualTo("httpError");
+    }
+
+    @Test
+    void whenRequiredButWitnessMissingMapsToInvalidDid() {
+        Signer author = makeTestSigner();
+        Signer witness = makeTestSigner();
+        String witnessDid = "did:key:" + extractMultikey(witness.verificationMethod());
+        WitnessConfig witnessConfig = new WitnessConfig(1,
+                Collections.singletonList(new WitnessEntry(witnessDid)));
+        CreateDidResult create = DidWebVh.create("example.com", author)
+                .witness(witnessConfig)
+                .execute();
+        // Fetcher signals notFound for witness proofs (the chain *needs* them).
+        StubRemoteDidFetcher fetcher = new StubRemoteDidFetcher(create.getLogLine());
+
+        DidResolver resolver = new DidResolver(fetcher, new FileDidFetcher(),
+                new LogProcessor());
+
+        assertThatThrownBy(() -> resolver.resolve(create.getDid(),
+                ResolveOptions.builder()
+                        .witnessFetchMode(ResolveOptions.WitnessFetchMode.WHEN_REQUIRED)
+                        .build()))
+                .isInstanceOf(ResolutionException.class)
+                .hasMessageContaining("Witness proofs are required")
+                .extracting("error").isEqualTo("invalidDid");
+    }
+
+    @Test
+    void resolveFromLogValidatesAgainstDid() {
+        Signer signer = makeTestSigner();
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+
+        ResolveResult result = new DidResolver().resolveFromLog(
+                create.getLogLine(), create.getDid());
+
+        assertThat(result.getDidDocument().getId()).isEqualTo(create.getDid());
+        assertThat(result.getMetadata().getVersionId())
+                .isEqualTo(create.getLogEntry().getVersionId());
+    }
+
     private static final class StubRemoteDidFetcher implements RemoteDidFetcher {
         private final String didLog;
         private final String witnessContent;

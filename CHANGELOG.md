@@ -91,6 +91,11 @@ against the v0.2.0 line (see issue #2).
   CHANGELOG (with an appended Maven Central coordinate), and the
   release attaches only the self-contained `didwebvh-wizard.jar`
   uber-jar — library modules are consumed from Maven Central.
+- **Test coverage**: lifted `didwebvh-core` from ~84% to ~91% by
+  covering real resolver/validator error paths (malformed
+  versionId/versionTime, future versionTime rejection, witness
+  threshold bounds, query-param parsing, PROACTIVE / WHEN_REQUIRED
+  witness fetch branches, and file/HTTP fetcher error mapping).
 
 ## [0.2.0] - 2026-05-06
 

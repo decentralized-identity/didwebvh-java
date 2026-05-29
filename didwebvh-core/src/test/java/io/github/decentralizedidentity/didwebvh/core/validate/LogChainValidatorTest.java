@@ -559,6 +559,83 @@ class LogChainValidatorTest {
     }
 
     @Test
+    void invalidVersionIdFormatFails() {
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        LogEntry malformed = new LogEntry()
+                .setVersionId("not-a-version-id")
+                .setVersionTime(create.getLogEntry().getVersionTime())
+                .setParameters(create.getLogEntry().getParameters())
+                .setState(create.getLogEntry().getState())
+                .setProof(create.getLogEntry().getProof());
+
+        ValidationResult vr = validator.validate(
+                Collections.singletonList(malformed), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("invalid versionId");
+    }
+
+    @Test
+    void invalidVersionTimeFormatFails() {
+        // Build a real 2-entry chain whose second entry's versionTime is malformed.
+        // The entry hash is computed over the malformed time so validation gets
+        // past the hash/proof checks and reaches the versionTime parse step.
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        LogEntry e1 = create.getLogEntry();
+        LogEntry e2 = buildEntryWithVersionTime(e1, "not-a-timestamp", 2);
+
+        ValidationResult vr = validator.validate(Arrays.asList(e1, e2), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("invalid versionTime");
+    }
+
+    @Test
+    void lastVersionTimeInFutureFails() {
+        // Last entry versionTime > now + 60 s must be rejected.
+        CreateDidResult create = DidWebVh.create("example.com", signer).execute();
+        LogEntry e1 = create.getLogEntry();
+        String farFuture = Instant.now().plusSeconds(7200).toString();
+        LogEntry e2 = buildEntryWithVersionTime(e1, farFuture, 2);
+
+        ValidationResult vr = validator.validate(Arrays.asList(e1, e2), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("future");
+    }
+
+    /** Build a real next entry whose versionTime is the given string. */
+    private static LogEntry buildEntryWithVersionTime(LogEntry previous, String versionTime,
+                                                       int newVersion) {
+        LogEntry preliminary = new LogEntry()
+                .setVersionId(previous.getVersionId())
+                .setVersionTime(versionTime)
+                .setParameters(new Parameters())
+                .setState(previous.getState().deepCopy());
+        String entryHash = EntryHashGenerator.generate(preliminary.toJsonLine(),
+                previous.getVersionId());
+        preliminary.setVersionId(newVersion + "-" + entryHash);
+        DataIntegrityProof proof = ProofGenerator.generate(signer, preliminary);
+        return preliminary.setProof(Collections.singletonList(proof));
+    }
+
+    @Test
+    void witnessThresholdZeroFails() {
+        WitnessConfig zeroThreshold = new WitnessConfig(0,
+                Collections.singletonList(new WitnessEntry("did:key:z6MkWit")));
+
+        CreateDidResult create = DidWebVh.create("example.com", signer)
+                .witness(zeroThreshold)
+                .execute();
+
+        ValidationResult vr = validator.validate(
+                Collections.singletonList(create.getLogEntry()), create.getDid());
+
+        assertThat(vr.isValid()).isFalse();
+        assertThat(vr.getFailureReason()).containsIgnoringCase("threshold");
+    }
+
+    @Test
     void noProofFails() {
         CreateDidResult create = DidWebVh.create("example.com", signer).execute();
         LogEntry noProof = new LogEntry()

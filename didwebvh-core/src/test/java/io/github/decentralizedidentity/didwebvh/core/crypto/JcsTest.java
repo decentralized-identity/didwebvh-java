@@ -1,11 +1,13 @@
 package io.github.decentralizedidentity.didwebvh.core.crypto;
 
 import com.google.gson.JsonObject;
+import io.github.decentralizedidentity.didwebvh.core.ValidationException;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JcsTest {
 
@@ -51,5 +53,12 @@ class JcsTest {
         String input = "{\"key\":\"\\u20ac\"}";
         String result = new String(Jcs.canonicalize(input), StandardCharsets.UTF_8);
         assertThat(result).contains("\u20ac");
+    }
+
+    @Test
+    void canonicalizeInvalidJsonThrowsValidationException() {
+        assertThatThrownBy(() -> Jcs.canonicalize("{not-json"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("JCS canonicalization failed");
     }
 }
