@@ -68,10 +68,52 @@ jobs:
 
           ./mvnw clean deploy -P release -B --no-transfer-progress -DskipTests
 
+      - name: Extract release notes from CHANGELOG
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # Pull the section between "## [VERSION]" and the next "## [" heading.
+          awk -v ver="$version" '
+            $0 ~ "^## \\["ver"\\]" { flag=1; print; next }
+            flag && /^## \[/        { exit }
+            flag                    { print }
+          ' CHANGELOG.md > .release-notes.md
+
+          if [ ! -s .release-notes.md ]; then
+            echo "::error::No CHANGELOG section found for [$version]. Add a '## [$version] - YYYY-MM-DD' entry before tagging."
+            exit 1
+          fi
+
+          {
+            echo
+            echo "---"
+            echo
+            echo "### Artifacts"
+            echo
+            echo "**Maven Central** (recommended for library users):"
+            echo
+            echo '```xml'
+            echo "<dependency>"
+            echo "  <groupId>io.github.decentralized-identity</groupId>"
+            echo "  <artifactId>didwebvh-core</artifactId>"
+            echo "  <version>${version}</version>"
+            echo "</dependency>"
+            echo '```'
+            echo
+            echo "Browse all modules: <https://central.sonatype.com/namespace/io.github.decentralized-identity>"
+            echo
+            echo "**CLI wizard uber-jar** is attached to this release below (not published to Maven Central)."
+            echo
+            echo "Full changelog: <https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md>"
+          } >> .release-notes.md
+
+          echo "----- release body -----"
+          cat .release-notes.md
+          echo "------------------------"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          body_path: .release-notes.md
           files: |
-            didwebvh-core/target/*.jar
-            didwebvh-wizard/target/*-shaded.jar
+            didwebvh-wizard/target/didwebvh-wizard.jar
