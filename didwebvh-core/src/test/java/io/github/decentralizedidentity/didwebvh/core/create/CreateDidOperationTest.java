@@ -396,6 +396,66 @@ class CreateDidOperationTest {
     }
 
     @Test
+    void controllersEmptyListOmitsControllerProperty() {
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .controllers(Collections.emptyList())
+                .execute();
+        JsonObject doc = result.getLogEntry().getState();
+        assertThat(doc.has("controller")).isFalse();
+    }
+
+    @Test
+    void controllersSingleElementUsesStringForm() {
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .controllers(Collections.singletonList("did:web:other.example.com"))
+                .execute();
+        JsonObject doc = result.getLogEntry().getState();
+        assertThat(doc.get("controller").isJsonPrimitive()).isTrue();
+        assertThat(doc.get("controller").getAsString())
+                .isEqualTo("did:web:other.example.com");
+    }
+
+    @Test
+    void controllersMultipleElementsUsesArrayForm() {
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .controllers(Arrays.asList(
+                        "did:web:a.example.com", "did:web:b.example.com"))
+                .execute();
+        JsonObject doc = result.getLogEntry().getState();
+        assertThat(doc.get("controller").isJsonArray()).isTrue();
+        assertThat(doc.getAsJsonArray("controller")).hasSize(2);
+    }
+
+    @Test
+    void extractMultikeyAcceptsBareDidKeyVerificationMethod() {
+        // Signer whose verificationMethod is the did:key URI without a fragment.
+        Signer bareSigner = new Signer() {
+            @Override public String keyType() { return testSigner.keyType(); }
+            @Override public String verificationMethod() {
+                return "did:key:" + testMultikey;
+            }
+            @Override public byte[] sign(byte[] data) { return testSigner.sign(data); }
+        };
+
+        CreateDidResult result = DidWebVh.create("example.com", bareSigner).execute();
+        assertThat(result.getLogEntry().getParameters().getUpdateKeys())
+                .containsExactly(testMultikey);
+    }
+
+    @Test
+    void extractMultikeyRejectsForeignVerificationMethod() {
+        Signer foreignSigner = new Signer() {
+            @Override public String keyType() { return testSigner.keyType(); }
+            @Override public String verificationMethod() { return "https://example.com/keys/1"; }
+            @Override public byte[] sign(byte[] data) { return testSigner.sign(data); }
+        };
+
+        assertThatThrownBy(() -> DidWebVh.create("example.com", foreignSigner).execute())
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Cannot extract multikey");
+    }
+
+    @Test
     void didDocumentHasVerificationMethod() {
         CreateDidResult result = DidWebVh.create("example.com", testSigner)
                 .execute();

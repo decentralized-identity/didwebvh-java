@@ -188,6 +188,58 @@ class DidWebVhUrlTest {
     }
 
     @Test
+    void rejectEmptyDomain() {
+        // SCID followed by an empty domain segment
+        assertThatThrownBy(() -> DidWebVhUrl.parse("did:webvh:" + SCID + "::path"))
+                .isInstanceOf(UrlParseException.class)
+                .hasMessageContaining("Domain");
+    }
+
+    @Test
+    void rejectPortOutOfRange() {
+        assertThatThrownBy(() -> DidWebVhUrl.parse(
+                "did:webvh:" + SCID + ":example.com%3A99999"))
+                .isInstanceOf(UrlParseException.class)
+                .hasMessageContaining("Port");
+    }
+
+    @Test
+    void rejectNonNumericPort() {
+        assertThatThrownBy(() -> DidWebVhUrl.parse(
+                "did:webvh:" + SCID + ":example.com%3Aabc"))
+                .isInstanceOf(UrlParseException.class)
+                .hasMessageContaining("port");
+    }
+
+    @Test
+    void rejectIpv6BracketedAddress() {
+        // Bracketed host triggers isIpAddress's IPv6 branch.
+        assertThatThrownBy(() -> DidWebVhUrl.parse(
+                "did:webvh:" + SCID + ":[host]"))
+                .isInstanceOf(UrlParseException.class)
+                .hasMessageContaining("IP address");
+    }
+
+    @Test
+    void queryParamWithoutEqualsStoredWithEmptyValue() {
+        DidWebVhUrl url = DidWebVhUrl.parse(
+                "did:webvh:" + SCID + ":example.com?flag&versionNumber=2");
+        assertThat(url.getQueryParams()).containsEntry("flag", "");
+        assertThat(url.getQueryParams()).containsEntry("versionNumber", "2");
+    }
+
+    @Test
+    void toStringRoundTripsMultipleQueryParams() {
+        String input = "did:webvh:" + SCID
+                + ":example.com?versionNumber=2&versionId=2-Qmabc";
+        DidWebVhUrl url = DidWebVhUrl.parse(input);
+        // toString joins with '&' between params (exercises the separator branch).
+        assertThat(url.toString()).contains("&");
+        assertThat(url.toString()).contains("versionNumber=2");
+        assertThat(url.toString()).contains("versionId=2-Qmabc");
+    }
+
+    @Test
     void casInsensitivePercentEncoding() {
         // %3a (lowercase) should also work
         DidWebVhUrl url = DidWebVhUrl.parse(
