@@ -95,6 +95,17 @@ jobs:
             echo '```xml'
             echo "<dependency>"
             echo "  <groupId>io.github.decentralized-identity</groupId>"
+            echo "  <artifactId>didwebvh-java</artifactId>"
+            echo "  <version>${version}</version>"
+            echo "</dependency>"
+            echo '```'
+            echo
+            echo "The aggregate \`didwebvh-java\` artifact transitively pulls in \`didwebvh-core\` and \`didwebvh-signing-local\`. Depend on \`didwebvh-core\` directly if you plan to supply your own \`Signer\` implementation."
+            echo
+            echo '```xml'
+            echo "<!-- Core only (BYO Signer): -->"
+            echo "<dependency>"
+            echo "  <groupId>io.github.decentralized-identity</groupId>"
             echo "  <artifactId>didwebvh-core</artifactId>"
             echo "  <version>${version}</version>"
             echo "</dependency>"
