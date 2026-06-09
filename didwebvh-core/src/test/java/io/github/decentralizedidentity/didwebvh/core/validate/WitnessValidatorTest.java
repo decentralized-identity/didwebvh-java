@@ -208,6 +208,65 @@ class WitnessValidatorTest {
         assertThat(result.getFailureReason()).contains("insufficient witness proofs");
     }
 
+    private WitnessProofCollection makeWitnessProofs(WitnessProofEntry... entries) {
+        return new WitnessProofCollection(Arrays.asList(entries));
+    }
+
+    private WitnessProofEntry makeProofEntry(String versionId, Signer... signers) {
+        JsonObject doc = new JsonObject();
+        doc.addProperty("versionId", versionId);
+        DataIntegrityProof[] proofs = new DataIntegrityProof[signers.length];
+        for (int i = 0; i < signers.length; i++) {
+            proofs[i] = LogChainValidatorTest.signDocument(signers[i], doc);
+        }
+        return new WitnessProofEntry(versionId, Arrays.asList(proofs));
+    }
+
+    @Test
+    void witnessListReductionStillRequiresPriorList() {
+        // Spec §3.7.5: when entry 2 reduces the witness list from {w1,w2}@2 to
+        // {w1}@1, that change takes effect only AFTER entry 2 is published, so
+        // entry 2 must still be witnessed by the PRIOR list {w1,w2}@2. A pruned
+        // did-witness.json with both proofs at versionId 2 satisfies both
+        // entries (issue #6). See vectors/witness-update/rust.
+        CreateDidResult create = createWithWitness(2,
+                new WitnessEntry(witnessDid1), new WitnessEntry(witnessDid2));
+        LogEntry e1 = create.getLogEntry();
+        LogEntry e2 = LogChainValidatorTest.buildUpdateEntry(
+                e1, create.getDid(), authorSigner,
+                new Parameters().setWitness(new WitnessConfig(1,
+                        Collections.singletonList(new WitnessEntry(witnessDid1)))),
+                null);
+
+        WitnessProofCollection proofs = makeWitnessProofs(
+                makeProofEntry(e2.getVersionId(), witnessSigner1, witnessSigner2));
+
+        WitnessValidationResult result = validator.validate(Arrays.asList(e1, e2), proofs, 0);
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    void witnessListReductionWithOnlyNewListFails() {
+        // The buggy behaviour from issue #6: entry 2 reduces to {w1}@1 and only
+        // w1 provides a proof. Because entry 2 must be witnessed by the prior
+        // {w1,w2}@2 list, a single proof is insufficient and resolution fails.
+        CreateDidResult create = createWithWitness(2,
+                new WitnessEntry(witnessDid1), new WitnessEntry(witnessDid2));
+        LogEntry e1 = create.getLogEntry();
+        LogEntry e2 = LogChainValidatorTest.buildUpdateEntry(
+                e1, create.getDid(), authorSigner,
+                new Parameters().setWitness(new WitnessConfig(1,
+                        Collections.singletonList(new WitnessEntry(witnessDid1)))),
+                null);
+
+        WitnessProofCollection proofs = makeWitnessProofs(
+                makeProofEntry(e2.getVersionId(), witnessSigner1));
+
+        WitnessValidationResult result = validator.validate(Arrays.asList(e1, e2), proofs, 0);
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getFailureReason()).contains("insufficient");
+    }
+
     @Test
     void fromEntryIndexRespected() {
         // Two entries; only second requires witnessing

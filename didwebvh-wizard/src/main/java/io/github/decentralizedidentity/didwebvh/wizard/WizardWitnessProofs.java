@@ -79,22 +79,28 @@ final class WizardWitnessProofs {
     }
 
     /**
-     * Per spec: witness proofs are required when either the merged config AFTER this
-     * entry's delta is active (normal case) OR when this entry sets witness back to
-     * {@code {}} while it was previously active (transition-off case).  In both cases
-     * the authorized witness set for signing is the previously active set when turning
-     * witnesses off, otherwise the newly merged set.
+     * Determine which witness set must approve {@code entryDelta}.
+     *
+     * <p>Per spec §3.7.5, a new {@code witness} list "becomes active AFTER the new
+     * DID log has been published". So while witnesses are already active, every
+     * entry — including one that <em>changes</em> the list (e.g. from two witnesses
+     * to one) or one that turns witnessing off ({@code {}}) — MUST be witnessed by
+     * the list that was in effect <em>before</em> this entry. The replacement list
+     * only governs subsequent entries. Returning the prior list here also closes the
+     * loophole where a controller could unilaterally shrink or remove oversight in a
+     * single unapproved entry.
+     *
+     * <p>The only exception is the first activation: when no witnesses were active
+     * before, there is no prior list to defer to, so the newly merged list applies
+     * immediately.
      */
     private WitnessConfig authorizedWitnesses(Parameters priorParams, Parameters entryDelta) {
         WitnessConfig priorActive = priorParams.getWitness();
-        Parameters merged = priorParams.merge(entryDelta);
-        WitnessConfig mergedActive = merged.getWitness();
-        boolean turningOff = priorActive != null && priorActive.isActive()
-                && (mergedActive == null || !mergedActive.isActive());
-        if (turningOff) {
+        if (priorActive != null && priorActive.isActive()) {
             return priorActive;
         }
-        return mergedActive;
+        // First activation: no prior witnesses, so the new list applies to this entry.
+        return priorParams.merge(entryDelta).getWitness();
     }
 
     private WitnessProofEntry buildProofEntry(String versionId, WitnessConfig authorized,
