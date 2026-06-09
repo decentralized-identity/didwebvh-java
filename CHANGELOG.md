@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Witness-list updates witnessed by the wrong list** (spec §3.7.5,
+  issue #6): per the spec a replacement `witness` list only becomes
+  active *after* the entry that introduces it is published, so the
+  entry making the change must be witnessed by the list in effect
+  *before* it. Both the proof generator (`WizardWitnessProofs`) and
+  the resolver (`WitnessValidator`) were instead using the new
+  (merged) list, so reducing a list (e.g. two witnesses down to one)
+  produced and required only a single proof. Now an entry is
+  witnessed by the prior active list whenever witnessing was already
+  active — covering list changes and turning witnessing off — with
+  the new list applying only on first activation. This matches the
+  Rust reference output for `vectors/witness-update`.
+
 ## [0.3.0] - 2026-05-29
 
 This release closes the failures reported by the

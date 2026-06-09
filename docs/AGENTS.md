@@ -161,6 +161,20 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 - `docs: update README with resolve example`
 - `chore: configure JaCoCo for coverage reporting`
 
+## Changelog and Commit Workflow
+
+After completing any change to the codebase, the agent MUST:
+
+1. **Update the changelog.** Add a summary of the change under the `## [Unreleased]`
+   section of `CHANGELOG.md`, in the appropriate `### Added` / `### Changed` /
+   `### Fixed` / `### Removed` subsection (create the subsection if it does not yet
+   exist). Follow the existing style: reference the spec section and/or issue number
+   for non-obvious behaviour.
+2. **Propose a commit message.** End the response with a suggested
+   [Conventional Commits](https://www.conventionalcommits.org/) commit message for the
+   change, so the developer can review and commit it. Do not commit on the developer's
+   behalf unless explicitly asked.
+
 ## How to Work on This Project
 
 1. Read `docs/ARCHITECTURE.md` for the full technical design.
@@ -169,3 +183,5 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 4. Run `./mvnw clean verify` with JDK 21 after every change to ensure tests, Checkstyle, SpotBugs, and
    coverage run locally.
 5. Keep dependencies minimal. Don't add a library for something that can be done in 20 lines.
+6. After every change, update the `[Unreleased]` section of `CHANGELOG.md` and propose a
+   commit message (see [Changelog and Commit Workflow](#changelog-and-commit-workflow)).

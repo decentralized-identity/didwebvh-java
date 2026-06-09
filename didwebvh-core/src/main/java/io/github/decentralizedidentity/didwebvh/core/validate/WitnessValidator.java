@@ -66,24 +66,23 @@ public final class WitnessValidator {
             activeParams = activeParams.merge(entryParams);
             WitnessConfig afterConfig = activeParams.getWitness();
 
-            // Spec §3.7.5 (lines 884-889): when the witness parameter is set to
-            // {} while witnesses were previously active, that log entry MUST be
-            // witnessed by the prior witnesses. Otherwise an attacker could
-            // legitimately disable witnessing in a forged entry and slip the
-            // change past the resolver. Skip only when no witnessing was
-            // active either side of this entry.
+            // Spec §3.7.5 (lines 884-889): a replacement witness list "becomes
+            // active AFTER the new DID log has been published". So while
+            // witnesses are already active, every entry — including one that
+            // changes the list (e.g. two witnesses down to one) or sets it to
+            // {} — MUST be witnessed by the list in effect BEFORE this entry;
+            // the replacement only governs subsequent entries. This also stops
+            // an attacker from shrinking or disabling oversight in a single
+            // forged entry and slipping it past the resolver. The sole
+            // exception is the first activation, where there is no prior list.
             boolean priorActive = priorConfig != null && priorConfig.isActive();
             boolean afterActive = afterConfig != null && afterConfig.isActive();
-            boolean witnessChanged = entryParams.getWitness() != null;
             WitnessConfig witnessConfig;
-            if (afterActive) {
-                // Per spec, "from {} to active" means the new config is
-                // immediately active and approves this entry.
-                witnessConfig = afterConfig;
-            } else if (priorActive && witnessChanged) {
-                // Transition from active to {}: the prior witnesses must
-                // approve this transition.
+            if (priorActive) {
                 witnessConfig = priorConfig;
+            } else if (afterActive) {
+                // First activation ({} -> active): the new list approves this entry.
+                witnessConfig = afterConfig;
             } else {
                 continue;
             }
