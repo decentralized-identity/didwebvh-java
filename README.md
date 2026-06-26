@@ -180,8 +180,7 @@ DidWebVh.create("example.com", signer).witness(witness).execute();
 
 Collecting witness proofs (sign `{"versionId":"<id>"}` with each authorized witness key and
 write them to `did-witness.json`) is done outside `DidWebVh.update`; see
-[`WizardWitnessProofs`](
-java/io/github/decentralized-identity/didwebvh/wizard/WizardWitnessProofs.java)
+[`WizardWitnessProofs`](didwebvh-wizard/src/main/java/io/github/decentralized-identity/didwebvh/wizard/WizardWitnessProofs.java)
 for a reference implementation that uses `ProofGenerator` and `WitnessProofEntry`.
 
 ### Publish a parallel `did:web` document
