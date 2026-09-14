@@ -33,7 +33,7 @@ A Java 11+ library for the [did:webvh](https://didwebvh.info/) (DID Web + Verifi
 <dependency>
     <groupId>io.github.decentralized-identity</groupId>
     <artifactId>didwebvh-java</artifactId>
-    <version>0.3.1</version>
+    <version>0.4.0</version>
 </dependency>
 ```
 
@@ -44,7 +44,7 @@ need the local-key adapter.
 ### Gradle
 
 ```groovy
-implementation 'io.github.decentralized-identity:didwebvh-java:0.3.1'
+implementation 'io.github.decentralized-identity:didwebvh-java:0.4.0'
 ```
 
 ## Library Usage
@@ -77,6 +77,28 @@ Save the signer material safely — you need it to sign every subsequent update:
 
 ```java
 Files.writeString(Paths.get("did-secrets.json"), signer.toJson());
+```
+
+#### Multiple update keys
+
+By default the genesis entry authorizes only the signer's key. To authorize several
+keys at creation — for example keys held by different parties, any of which may sign a
+future update — pass the full list with `updateKeys(...)`. Each entry is a bare
+multibase public key (`z6Mk…`) and the signing key **must** be included; per the
+did:webvh spec each log entry is still authored by exactly one of these keys:
+
+```java
+LocalKeySigner signer = LocalKeySigner.generate();
+LocalKeySigner other  = LocalKeySigner.generate();   // held by another party
+
+CreateDidResult result = DidWebVh.create("example.com", signer)
+        .updateKeys(List.of(
+                signer.getPublicKeyMultikey(),
+                other.getPublicKeyMultikey()))
+        .execute();
+
+// Later, `other` can author an update using only its own key:
+// DidWebVh.update(state, other).newDocument(...).execute();
 ```
 
 ### Resolve a DID

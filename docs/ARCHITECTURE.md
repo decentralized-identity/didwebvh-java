@@ -94,7 +94,7 @@ The signing abstraction and proof generation.
 
 | Class | Purpose |
 |-------|---------|
-| `CreateDidConfig` | Builder for DID creation parameters: domain, path, signer, document content, parameters (portable, witnesses, watchers, ttl, pre-rotation keys). |
+| `CreateDidConfig` | Builder for DID creation parameters: domain, path, signer, document content, parameters (portable, witnesses, watchers, ttl, pre-rotation keys, update keys). By default the genesis `updateKeys` is the signer's key alone; `updateKeys(List<String>)` declares the full authorized list (must include the signer's key). |
 | `CreateDidOperation` | Executes the creation: builds preliminary entry with `{SCID}` placeholders, generates SCID, replaces placeholders, generates entry hash, generates versionId, generates proof, returns `CreateDidResult`. |
 | `CreateDidResult` | The created DID string, the first `LogEntry`, and optionally witness proofs. |
 

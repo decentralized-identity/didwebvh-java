@@ -23,6 +23,7 @@ class CreateWizardTest {
                 "example.com",      // domain
                 "",                 // path (blank)
                 "1",                // generate key
+                "",                 // additional update keys (blank)
                 "",                 // alsoKnownAs (blank)
                 "",                 // extra controllers (blank)
                 "",                 // services (blank)
@@ -64,6 +65,7 @@ class CreateWizardTest {
                 "issuer.example.com",       // domain
                 "dids:alice",               // path
                 "1",                        // generate key
+                "",                         // additional update keys
                 "",                         // alsoKnownAs
                 "",                         // extra controllers
                 "",                         // services
@@ -84,6 +86,7 @@ class CreateWizardTest {
         ScriptedWizardIo io = new ScriptedWizardIo(
                 "example.com", "",
                 "1",                // generate key
+                "",                 // additional update keys
                 "",                 // alsoKnownAs
                 "",                 // extra controllers
                 "",                 // services
@@ -118,9 +121,43 @@ class CreateWizardTest {
                 "1",
                 "",
                 "",
+                "",
                 "not-json"                  // services: invalid
         );
         org.junit.jupiter.api.Assertions.assertThrows(WizardException.class,
                 () -> new CreateWizard(io).run(tmp));
+    }
+
+    @Test
+    void createWithExtraUpdateKeyAuthorizesBothKeys(@TempDir Path tmp) {
+        String extraKey = LocalKeySigner.generate().getPublicKeyMultikey();
+        ScriptedWizardIo io = new ScriptedWizardIo(
+                "example.com",      // domain
+                "",                 // path
+                "1",                // generate key
+                extraKey,           // additional update keys
+                "",                 // alsoKnownAs
+                "",                 // extra controllers
+                "",                 // services
+                "n",                // portable
+                "n",                // pre-rotation
+                "n",                // witnesses
+                "",                 // watchers
+                ""                  // TTL
+        );
+
+        String did = new CreateWizard(io).run(tmp);
+
+        // The generated signer key comes first, then the supplied extra key.
+        String signerKey = LocalKeySigner.fromJson(
+                WizardFiles.read(tmp.resolve(WizardFiles.DID_SECRETS)))
+                .getPublicKeyMultikey();
+        String log = WizardFiles.read(tmp.resolve(WizardFiles.DID_LOG));
+        LogEntry entry = LogEntry.fromJsonLine(log.trim());
+        assertThat(entry.getParameters().getUpdateKeys())
+                .containsExactly(signerKey, extraKey);
+        assertThat(DidWebVh.validate(
+                Collections.singletonList(entry), did).isValid()).isTrue();
+        assertThat(io.remainingInputs()).isZero();
     }
 }

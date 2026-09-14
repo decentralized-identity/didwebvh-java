@@ -17,6 +17,7 @@ class WizardMainTest {
                 "example.com",              // domain
                 "",                         // path
                 "1",                        // generate key
+                "",                         // additional update keys
                 "",                         // alsoKnownAs
                 "",                         // controllers
                 "",                         // services
@@ -36,7 +37,7 @@ class WizardMainTest {
     @Test
     void actionModeRunsSingleAction(@TempDir Path tmp) {
         ScriptedWizardIo io = new ScriptedWizardIo(
-                "example.com", "", "1", "", "", "", "n", "n", "n", "", ""
+                "example.com", "", "1", "", "", "", "", "n", "n", "n", "", ""
         );
         WizardMain main = new WizardMain();
         main.setWorkDir(tmp);

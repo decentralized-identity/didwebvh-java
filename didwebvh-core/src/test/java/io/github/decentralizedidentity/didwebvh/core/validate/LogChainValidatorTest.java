@@ -713,4 +713,33 @@ class LogChainValidatorTest {
         assertThat(vr.isValid()).isFalse();
         assertThat(vr.getFailureReason()).contains("proof");
     }
+
+    /**
+     * Issue #8 / {@code multiple-update-keys} compliance vector: a DID created with
+     * two authorized update keys can have a later entry signed by the <em>second</em>
+     * key and still validate end-to-end.
+     */
+    @Test
+    void createTwoUpdateKeysThenUpdateSignedBySecondKeyValidates() {
+        Signer signer2 = makeTestSigner();
+        String key0 = extractMultikey(signer.verificationMethod());
+        String key1 = extractMultikey(signer2.verificationMethod());
+
+        CreateDidResult create = DidWebVh.create("example.com", signer)
+                .updateKeys(Arrays.asList(key0, key1))
+                .execute();
+        LogEntry e1 = create.getLogEntry();
+        assertThat(e1.getParameters().getUpdateKeys()).containsExactly(key0, key1);
+
+        // Second entry authored by the SECOND update key (signer2).
+        JsonObject state2 = e1.getState().deepCopy();
+        state2.addProperty("updated", "true");
+        LogEntry e2 = buildUpdateEntry(e1, create.getDid(), signer2, null, state2);
+
+        ValidationResult vr =
+                validator.validate(Arrays.asList(e1, e2), create.getDid());
+
+        assertThat(vr.isValid()).isTrue();
+        assertThat(vr.getLastValidEntryIndex()).isEqualTo(1);
+    }
 }
