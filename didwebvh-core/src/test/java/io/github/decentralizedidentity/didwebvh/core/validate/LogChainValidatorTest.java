@@ -67,8 +67,8 @@ class LogChainValidatorTest {
 
     static String extractMultikey(String verificationMethod) {
         int hash = verificationMethod.indexOf('#');
-        return hash >= 0 ? verificationMethod.substring(hash + 1)
-                : verificationMethod.substring("did:key:".length());
+        return verificationMethod.substring(
+                hash >= 0 ? hash + 1 : "did:key:".length());
     }
 
     /** Build an update entry on top of a previous entry. */
@@ -102,7 +102,7 @@ class LogChainValidatorTest {
         ValidationResult vr = validator.validate(entries, result.getDid());
 
         assertThat(vr.isValid()).isTrue();
-        assertThat(vr.getLastValidEntryIndex()).isEqualTo(0);
+        assertThat(vr.getLastValidEntryIndex()).isZero();
         assertThat(vr.getFailureReason()).isNull();
     }
 
@@ -147,7 +147,7 @@ class LogChainValidatorTest {
 
         assertThat(vr.isValid()).isFalse();
         assertThat(vr.getFailedEntryIndex()).isEqualTo(1);
-        assertThat(vr.getLastValidEntryIndex()).isEqualTo(0);
+        assertThat(vr.getLastValidEntryIndex()).isZero();
         assertThat(vr.getFailureReason()).contains("entry hash");
     }
 
@@ -198,7 +198,7 @@ class LogChainValidatorTest {
 
         assertThat(vr.isValid()).isFalse();
         assertThat(vr.getFailedEntryIndex()).isEqualTo(1);
-        assertThat(vr.getLastValidEntryIndex()).isEqualTo(0);
+        assertThat(vr.getLastValidEntryIndex()).isZero();
         assertThat(vr.getFailureReason()).contains("updateKeys");
     }
 

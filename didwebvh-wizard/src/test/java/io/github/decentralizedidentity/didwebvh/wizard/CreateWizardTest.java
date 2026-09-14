@@ -124,8 +124,9 @@ class CreateWizardTest {
                 "",
                 "not-json"                  // services: invalid
         );
+        CreateWizard wizard = new CreateWizard(io);
         org.junit.jupiter.api.Assertions.assertThrows(WizardException.class,
-                () -> new CreateWizard(io).run(tmp));
+                () -> wizard.run(tmp));
     }
 
     @Test
