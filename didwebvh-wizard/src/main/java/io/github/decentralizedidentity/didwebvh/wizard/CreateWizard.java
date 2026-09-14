@@ -45,6 +45,18 @@ public final class CreateWizard {
             config.path(path);
         }
 
+        // Additional authorized update keys (issue #8). The signer's own key is always
+        // authorized and listed first; extras are other parties' public multikeys that
+        // may sign future updates.
+        List<String> extraUpdateKeys = readList(
+                "Additional update keys (comma-separated multikeys, blank for signer only): ");
+        if (!extraUpdateKeys.isEmpty()) {
+            List<String> updateKeys = new ArrayList<>();
+            updateKeys.add(signer.getPublicKeyMultikey());
+            updateKeys.addAll(extraUpdateKeys);
+            config.updateKeys(updateKeys);
+        }
+
         List<String> alsoKnownAs = readList(
                 "alsoKnownAs (comma-separated, blank for none): ");
         if (!alsoKnownAs.isEmpty()) {

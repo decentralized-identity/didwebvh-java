@@ -21,6 +21,7 @@ public final class CreateDidConfig {
     private Integer ttl;
     private List<String> alsoKnownAs;
     private List<String> controllers;
+    private List<String> updateKeys;
     private WitnessConfig witness;
     private List<String> watchers;
     private List<String> nextKeyHashes;
@@ -70,6 +71,31 @@ public final class CreateDidConfig {
     public CreateDidConfig controllers(List<String> controllers) {
         this.controllers = controllers == null
                 ? null : new ArrayList<>(controllers);
+        return this;
+    }
+
+    /**
+     * Set the full list of update keys authorized in the genesis log entry.
+     *
+     * <p>Per the did:webvh spec each log entry is authorized by <em>one</em> key from
+     * the active {@code updateKeys} list; this method lets the genesis entry declare
+     * more than one authorized key (e.g. keys held by different parties), any of which
+     * may sign a future update.
+     *
+     * <ul>
+     *   <li>{@code null} (default) – authorize only the signer's own key, the
+     *       historical behaviour;</li>
+     *   <li>a non-empty list – authorize exactly these keys, in order.</li>
+     * </ul>
+     *
+     * <p>Entries MUST be bare multibase-encoded public keys (e.g. {@code z6Mk…}), not
+     * {@code did:key:…#…}. The signer's own key MUST be included, otherwise the single
+     * genesis proof would not be authorized; {@link #execute()} rejects a list that
+     * omits it, is empty, or contains a null/blank entry.
+     */
+    public CreateDidConfig updateKeys(List<String> updateKeys) {
+        this.updateKeys = updateKeys == null
+                ? null : new ArrayList<>(updateKeys);
         return this;
     }
 
@@ -128,6 +154,10 @@ public final class CreateDidConfig {
 
     List<String> getControllers() {
         return controllers;
+    }
+
+    List<String> getUpdateKeys() {
+        return updateKeys;
     }
 
     WitnessConfig getWitness() {

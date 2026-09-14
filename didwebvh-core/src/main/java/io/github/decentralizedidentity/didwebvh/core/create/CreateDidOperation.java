@@ -86,13 +86,42 @@ final class CreateDidOperation {
             throw new ValidationException(
                     "ttl must be non-negative, was " + config.getTtl());
         }
-        if (config.getNextKeyHashes() != null) {
-            for (String hash : config.getNextKeyHashes()) {
-                if (hash == null || hash.isEmpty()) {
-                    throw new ValidationException(
-                            "nextKeyHashes entries must be non-empty");
-                }
+        validateNextKeyHashes(config);
+        validateUpdateKeys(config);
+    }
+
+    private static void validateNextKeyHashes(CreateDidConfig config) {
+        if (config.getNextKeyHashes() == null) {
+            return;
+        }
+        for (String hash : config.getNextKeyHashes()) {
+            if (hash == null || hash.isEmpty()) {
+                throw new ValidationException(
+                        "nextKeyHashes entries must be non-empty");
             }
+        }
+    }
+
+    private static void validateUpdateKeys(CreateDidConfig config) {
+        List<String> updateKeys = config.getUpdateKeys();
+        if (updateKeys == null) {
+            return;
+        }
+        if (updateKeys.isEmpty()) {
+            throw new ValidationException("updateKeys must not be empty");
+        }
+        for (String key : updateKeys) {
+            if (key == null || key.isEmpty()) {
+                throw new ValidationException(
+                        "updateKeys entries must be non-empty");
+            }
+        }
+        // The genesis entry is signed by a single key, which MUST be one of the
+        // authorized updateKeys (spec §3.7.5), otherwise the proof is unauthorized.
+        String signerMultikey = extractMultikey(config.getSigner());
+        if (!updateKeys.contains(signerMultikey)) {
+            throw new ValidationException(
+                    "updateKeys must include the signer's key " + signerMultikey);
         }
     }
 
@@ -184,10 +213,14 @@ final class CreateDidOperation {
 
     private static Parameters buildParameters(String signerMultikey,
                                               CreateDidConfig config) {
+        List<String> updateKeys = config.getUpdateKeys() != null
+                ? config.getUpdateKeys()
+                : Collections.singletonList(signerMultikey);
+
         Parameters params = new Parameters()
                 .setMethod(METHOD_VERSION)
                 .setScid(SCID_PLACEHOLDER)
-                .setUpdateKeys(Collections.singletonList(signerMultikey));
+                .setUpdateKeys(updateKeys);
 
         if (config.getPortable() != null) {
             params.setPortable(config.getPortable());

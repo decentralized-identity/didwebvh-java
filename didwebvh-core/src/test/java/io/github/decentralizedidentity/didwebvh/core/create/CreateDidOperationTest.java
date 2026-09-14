@@ -158,8 +158,8 @@ class CreateDidOperationTest {
                 .execute();
 
         String logLine = result.getLogLine();
-        assertThat(logLine).doesNotContain("\n");
-        assertThat(logLine).doesNotContain("  "); // no indentation
+        // no newlines and no indentation
+        assertThat(logLine).doesNotContain("\n").doesNotContain("  ");
     }
 
     @Test
@@ -346,33 +346,32 @@ class CreateDidOperationTest {
 
     @Test
     void nullDomainThrows() {
-        assertThatThrownBy(() ->
-                DidWebVh.create(null, testSigner).execute())
+        CreateDidConfig config = DidWebVh.create(null, testSigner);
+        assertThatThrownBy(config::execute)
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("domain");
     }
 
     @Test
     void emptyDomainThrows() {
-        assertThatThrownBy(() ->
-                DidWebVh.create("", testSigner).execute())
+        CreateDidConfig config = DidWebVh.create("", testSigner);
+        assertThatThrownBy(config::execute)
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("domain");
     }
 
     @Test
     void nullSignerThrows() {
-        assertThatThrownBy(() ->
-                DidWebVh.create("example.com", null).execute())
+        CreateDidConfig config = DidWebVh.create("example.com", null);
+        assertThatThrownBy(config::execute)
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("signer");
     }
 
     @Test
     void negativeTtlThrows() {
-        assertThatThrownBy(() ->
-                DidWebVh.create("example.com", testSigner)
-                        .ttl(-1).execute())
+        CreateDidConfig config = DidWebVh.create("example.com", testSigner).ttl(-1);
+        assertThatThrownBy(config::execute)
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("ttl must be non-negative");
     }
@@ -382,15 +381,14 @@ class CreateDidOperationTest {
         // ttl=0 is valid per spec: "do not cache"
         CreateDidResult result = DidWebVh.create("example.com", testSigner)
                 .ttl(0).execute();
-        assertThat(result.getLogEntry().getParameters().getTtl()).isEqualTo(0);
+        assertThat(result.getLogEntry().getParameters().getTtl()).isZero();
     }
 
     @Test
     void nextKeyHashEmptyEntryThrows() {
-        assertThatThrownBy(() ->
-                DidWebVh.create("example.com", testSigner)
-                        .nextKeyHashes(Collections.singletonList(""))
-                        .execute())
+        CreateDidConfig config = DidWebVh.create("example.com", testSigner)
+                .nextKeyHashes(Collections.singletonList(""));
+        assertThatThrownBy(config::execute)
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("non-empty");
     }
@@ -450,7 +448,8 @@ class CreateDidOperationTest {
             @Override public byte[] sign(byte[] data) { return testSigner.sign(data); }
         };
 
-        assertThatThrownBy(() -> DidWebVh.create("example.com", foreignSigner).execute())
+        CreateDidConfig config = DidWebVh.create("example.com", foreignSigner);
+        assertThatThrownBy(config::execute)
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("Cannot extract multikey");
     }
@@ -471,5 +470,110 @@ class CreateDidOperationTest {
                 .isEqualTo(testMultikey);
         assertThat(vm.get("controller").getAsString())
                 .isEqualTo(result.getDid());
+    }
+
+    // ── multiple update keys at creation (issue #8) ──────────────────────────
+
+    /** Generate a fresh, unrelated Ed25519 public key in bare multibase form. */
+    private static String randomMultikey() {
+        Ed25519KeyPairGenerator gen = new Ed25519KeyPairGenerator();
+        gen.init(new Ed25519KeyGenerationParameters(new SecureRandom()));
+        Ed25519PublicKeyParameters pub =
+                (Ed25519PublicKeyParameters) gen.generateKeyPair().getPublic();
+        return MultikeyUtil.encode(MultikeyUtil.ED25519_KEY_TYPE, pub.getEncoded());
+    }
+
+    @Test
+    void createWithMultipleUpdateKeysSetsAllInOrder() {
+        String secondMultikey = randomMultikey();
+
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .updateKeys(Arrays.asList(testMultikey, secondMultikey))
+                .execute();
+
+        // Order is preserved exactly as supplied.
+        assertThat(result.getLogEntry().getParameters().getUpdateKeys())
+                .containsExactly(testMultikey, secondMultikey);
+    }
+
+    @Test
+    void createWithMultipleUpdateKeysStillProducesValidScidHashAndProof() {
+        String secondMultikey = randomMultikey();
+
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .updateKeys(Arrays.asList(testMultikey, secondMultikey))
+                .execute();
+
+        LogEntry entry = result.getLogEntry();
+        String scid = entry.getParameters().getScid();
+        assertThat(ScidGenerator.verify(scid, entry)).isTrue();
+        assertThat(EntryHashGenerator.verify(entry, scid)).isTrue();
+        assertThat(ProofVerifier.verify(entry.getProof().get(0), entry)).isTrue();
+    }
+
+    @Test
+    void genesisProofIsAuthorizedAgainstMultiKeyList() {
+        String secondMultikey = randomMultikey();
+
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .updateKeys(Arrays.asList(testMultikey, secondMultikey))
+                .execute();
+
+        LogEntry entry = result.getLogEntry();
+        DataIntegrityProof proof = entry.getProof().get(0);
+        assertThat(ProofVerifier.isAuthorized(proof,
+                entry.getParameters().getUpdateKeys())).isTrue();
+    }
+
+    @Test
+    void updateKeysSingleElementListSupported() {
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .updateKeys(Collections.singletonList(testMultikey))
+                .execute();
+
+        LogEntry entry = result.getLogEntry();
+        String scid = entry.getParameters().getScid();
+        assertThat(entry.getParameters().getUpdateKeys())
+                .containsExactly(testMultikey);
+        assertThat(ScidGenerator.verify(scid, entry)).isTrue();
+        assertThat(EntryHashGenerator.verify(entry, scid)).isTrue();
+        assertThat(ProofVerifier.verify(entry.getProof().get(0), entry)).isTrue();
+    }
+
+    @Test
+    void updateKeysUnsetDefaultsToSignerKey() {
+        CreateDidResult result = DidWebVh.create("example.com", testSigner)
+                .execute();
+
+        assertThat(result.getLogEntry().getParameters().getUpdateKeys())
+                .containsExactly(testMultikey);
+    }
+
+    @Test
+    void updateKeysWithoutSignerKeyThrows() {
+        String otherKey = randomMultikey();
+        CreateDidConfig config = DidWebVh.create("example.com", testSigner)
+                .updateKeys(Collections.singletonList(otherKey));
+        assertThatThrownBy(config::execute)
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("signer");
+    }
+
+    @Test
+    void updateKeysEmptyListThrows() {
+        CreateDidConfig config = DidWebVh.create("example.com", testSigner)
+                .updateKeys(Collections.emptyList());
+        assertThatThrownBy(config::execute)
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("updateKeys");
+    }
+
+    @Test
+    void updateKeysBlankEntryThrows() {
+        CreateDidConfig config = DidWebVh.create("example.com", testSigner)
+                .updateKeys(Arrays.asList(testMultikey, ""));
+        assertThatThrownBy(config::execute)
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("non-empty");
     }
 }
