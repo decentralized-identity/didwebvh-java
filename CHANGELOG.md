@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-14
+
+### Added
+- **Declare multiple `updateKeys` at DID creation** (issue #8): new
+  `CreateDidConfig.updateKeys(List<String>)` sets the full list of authorized
+  update keys in the genesis log entry, instead of always using the signer's key
+  alone. Entries are bare multibase public keys (`z6Mk…`) and the signing key must
+  be included; the list is used verbatim and in order. This unblocks the
+  `multiple-update-keys` compliance test vector, where a DID is created authorizing
+  two keys and a later entry is signed by the second key. Per the did:webvh spec
+  (§3.7.5) each log entry is still authored by exactly one authorized key, so
+  additional keys simply enumerate other parties permitted to author future
+  updates. The interactive wizard's create flow gains a matching
+  "Additional update keys" prompt. Existing single-key `create(...)` calls are
+  unaffected.
+
 ## [0.3.1] - 2026-06-09
 
 ### Fixed
@@ -219,7 +235,8 @@ Initial public release of `didwebvh-java`, a Java 11+ implementation of the
   `.github/workflows/release.yml` that publishes to Sonatype Central on
   tag push (`v*`) and attaches JARs to the GitHub Release.
 
-[Unreleased]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/decentralized-identity/didwebvh-java/compare/v0.1.0...v0.2.0
