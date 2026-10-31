@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Logs that name the DID as a did:scid** (`ResolveOptions.Builder#didScidIds`):
+  resolve a did:webvh 1.0 log whose entries name the DID as
+  `did:scid:vh:1:<SCID>` rather than as a did:webvh, the form a
+  did:scid's `src` can give. The log is checked by the same rules,
+  except that every entry's `state.id` must be exactly
+  `did:scid:vh:1:<scid>` (no host, path, query or fragment), the DID
+  passed in may be that did:scid (with its `?src=`), and no implicit
+  `#files` or `#whois` service is added (spec §3.8, §3.9), since the
+  DID names no host. Off by default; without it such a log is refused,
+  as before. Test logs from an independent implementation are in
+  `test-vectors/did-scid/`.
+
 ## [0.3.1] - 2026-06-09
 
 ### Fixed
