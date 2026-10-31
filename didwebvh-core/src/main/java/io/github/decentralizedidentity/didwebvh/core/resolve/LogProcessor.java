@@ -55,7 +55,8 @@ class LogProcessor {
         boolean didScidIds = effectiveOptions.isDidScidIds();
         String expectedDid = didScidIds ? baseDidScid(did) : baseDid(did);
 
-        ValidationResult validation = logChainValidator.validate(entries, expectedDid, didScidIds);
+        LogChainValidator validator = didScidIds ? new LogChainValidator(true) : logChainValidator;
+        ValidationResult validation = validator.validate(entries, expectedDid);
         if (!validation.isValid()) {
             throw invalidDid("Invalid DID log: " + validation.getFailureReason());
         }

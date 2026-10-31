@@ -37,8 +37,8 @@ class DidScidIdsTest {
         assertThat(result.getDidDocument().getId()).isEqualTo(DID);
         assertThat(result.getMetadata().getVersionId())
                 .isEqualTo("3-QmQiYUxbbjPc6Cxrq5bX8p1ifTPJNMA2o7smeqDCjsgmHw");
-        assertThat(result.getDidDocument().asJsonObject().get("alsoKnownAs").toString())
-                .isEqualTo("[\"urn:example:entry-3\"]");
+        assertThat(result.getDidDocument().asJsonObject().get("alsoKnownAs"))
+                .hasToString("[\"urn:example:entry-3\"]");
         // A did:scid names no host, so no implicit #files or #whois.
         assertThat(result.getDidDocument().asJsonObject().has("service")).isFalse();
     }
@@ -55,8 +55,9 @@ class DidScidIdsTest {
     @Test
     void withoutTheOptionItIsRefused() throws IOException {
         String log = vector("scid-three-entries");
+        DidResolver resolver = new DidResolver();
 
-        assertThatThrownBy(() -> new DidResolver().resolveFromLog(log, null))
+        assertThatThrownBy(() -> resolver.resolveFromLog(log, null))
                 .isInstanceOf(ResolutionException.class)
                 .extracting("error")
                 .isEqualTo("invalidDid");
@@ -65,8 +66,9 @@ class DidScidIdsTest {
     @Test
     void refusesAnotherDidScid() throws IOException {
         String log = vector("scid-three-entries");
+        DidResolver resolver = new DidResolver();
 
-        assertThatThrownBy(() -> new DidResolver().resolveFromLog(log,
+        assertThatThrownBy(() -> resolver.resolveFromLog(log,
                 "did:scid:vh:1:QmZQmhLrqzEQHPA6ywz31BbSJQ4K8KjVf1G3iKhSHG1wEp", DID_SCID_IDS))
                 .isInstanceOf(ResolutionException.class)
                 .hasMessageContaining("no entry has DID Document id matching");
@@ -75,8 +77,9 @@ class DidScidIdsTest {
     @Test
     void refusesADidThatIsNotADidScid() throws IOException {
         String log = vector("scid-three-entries");
+        DidResolver resolver = new DidResolver();
 
-        assertThatThrownBy(() -> new DidResolver().resolveFromLog(log,
+        assertThatThrownBy(() -> resolver.resolveFromLog(log,
                 "did:webvh:QmeyXk5HskUDXoEpbDhTmKbE1vpABYpHobnB5fuGMRbYfZ:example.com", DID_SCID_IDS))
                 .isInstanceOf(ResolutionException.class)
                 .hasMessageContaining("Not a did:scid:vh:1 DID");
@@ -87,8 +90,9 @@ class DidScidIdsTest {
             "scid-moves-to-webvh", "webvh-moves-to-scid"})
     void refusesAnIdThatIsNotExactlyTheDidScid(String name) throws IOException {
         String log = vector(name);
+        DidResolver resolver = new DidResolver();
 
-        assertThatThrownBy(() -> new DidResolver().resolveFromLog(log, null, DID_SCID_IDS))
+        assertThatThrownBy(() -> resolver.resolveFromLog(log, null, DID_SCID_IDS))
                 .isInstanceOf(ResolutionException.class)
                 .hasMessageContaining("state.id must be did:scid:vh:1:");
     }
@@ -96,8 +100,9 @@ class DidScidIdsTest {
     @Test
     void refusesATamperedLog() throws IOException {
         String log = vector("scid-three-entries").replace("urn:example:entry-3", "urn:example:forged");
+        DidResolver resolver = new DidResolver();
 
-        assertThatThrownBy(() -> new DidResolver().resolveFromLog(log, DID, DID_SCID_IDS))
+        assertThatThrownBy(() -> resolver.resolveFromLog(log, DID, DID_SCID_IDS))
                 .isInstanceOf(ResolutionException.class)
                 .extracting("error")
                 .isEqualTo("invalidDid");
