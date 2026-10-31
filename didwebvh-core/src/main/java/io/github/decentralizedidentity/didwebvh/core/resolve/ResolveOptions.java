@@ -7,12 +7,14 @@ public final class ResolveOptions {
     private final String versionTime;
     private final Integer versionNumber;
     private final WitnessFetchMode witnessFetchMode;
+    private final boolean didScidIds;
 
     private ResolveOptions(Builder builder) {
         this.versionId = builder.versionId;
         this.versionTime = builder.versionTime;
         this.versionNumber = builder.versionNumber;
         this.witnessFetchMode = builder.witnessFetchMode;
+        this.didScidIds = builder.didScidIds;
     }
 
     /** Returns a new builder for {@link ResolveOptions}. */
@@ -40,6 +42,14 @@ public final class ResolveOptions {
         return versionNumber;
     }
 
+    /**
+     * Returns whether the log's entries name the DID as {@code did:scid:vh:1:<SCID>} rather than
+     * as a did:webvh (see {@link Builder#didScidIds(boolean)}).
+     */
+    public boolean isDidScidIds() {
+        return didScidIds;
+    }
+
     /** Returns the witness fetch mode. */
     public WitnessFetchMode getWitnessFetchMode() {
         return witnessFetchMode;
@@ -54,6 +64,7 @@ public final class ResolveOptions {
                 .versionTime(versionTime != null ? versionTime : fallback.versionTime)
                 .versionNumber(versionNumber != null ? versionNumber : fallback.versionNumber)
                 .witnessFetchMode(witnessFetchMode)
+                .didScidIds(didScidIds)
                 .build();
     }
 
@@ -85,6 +96,7 @@ public final class ResolveOptions {
         private String versionTime;
         private Integer versionNumber;
         private WitnessFetchMode witnessFetchMode = WitnessFetchMode.PROACTIVE;
+        private boolean didScidIds;
 
         private Builder() {
         }
@@ -111,6 +123,20 @@ public final class ResolveOptions {
         public Builder witnessFetchMode(WitnessFetchMode witnessFetchMode) {
             this.witnessFetchMode = witnessFetchMode == null
                     ? WitnessFetchMode.PROACTIVE : witnessFetchMode;
+            return this;
+        }
+
+        /**
+         * Resolves a log whose entries name the DID as {@code did:scid:vh:1:<SCID>}, the did:scid
+         * vh:1 form, rather than as a did:webvh: such a log is checked by the same rules, except that
+         * every entry's {@code state.id} must be exactly {@code did:scid:vh:1:<scid>} (no host, path,
+         * query or fragment), and no implicit {@code #files} or {@code #whois} service is added, since
+         * the DID names no host. For resolving from a log (for example
+         * {@link DidResolver#resolveFromLog(String, String, ResolveOptions)}), where a did:scid's
+         * {@code src} gives the log.
+         */
+        public Builder didScidIds(boolean didScidIds) {
+            this.didScidIds = didScidIds;
             return this;
         }
 

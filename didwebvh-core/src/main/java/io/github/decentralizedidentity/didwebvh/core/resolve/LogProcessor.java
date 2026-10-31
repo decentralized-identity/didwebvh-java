@@ -52,9 +52,10 @@ class LogProcessor {
         ResolveOptions effectiveOptions = options == null ? ResolveOptions.defaults() : options;
         validateVersionSelector(effectiveOptions);
         List<LogEntry> entries = parseEntries(didLogContent);
-        String expectedDid = baseDid(did);
+        boolean didScidIds = effectiveOptions.isDidScidIds();
+        String expectedDid = didScidIds ? baseDidScid(did) : baseDid(did);
 
-        ValidationResult validation = logChainValidator.validate(entries, expectedDid);
+        ValidationResult validation = logChainValidator.validate(entries, expectedDid, didScidIds);
         if (!validation.isValid()) {
             throw invalidDid("Invalid DID log: " + validation.getFailureReason());
         }
@@ -72,7 +73,10 @@ class LogProcessor {
             // implicit #files and #whois services unless the controller has
             // already defined explicit services with the same id.
             JsonObject state = selected.getState().deepCopy();
-            ImplicitServices.addTo(state, selected.getState().get("id").getAsString());
+            if (!didScidIds) {
+                // A did:scid names no host, so there's nowhere for implicit services to point.
+                ImplicitServices.addTo(state, selected.getState().get("id").getAsString());
+            }
             result.setDidDocument(new DidDocument(state));
         }
         return result;
@@ -99,6 +103,18 @@ class LogProcessor {
             throw invalidDid("DID log must contain at least one entry");
         }
         return entries;
+    }
+
+    /** The did:scid without its query (a did:scid's {@code ?src=}) or fragment. */
+    private String baseDidScid(String did) {
+        if (did == null) {
+            return null;
+        }
+        String base = did.split("[?#]", 2)[0];
+        if (!base.startsWith(LogChainValidator.DID_SCID_VH1_PREFIX)) {
+            throw invalidDid("Not a did:scid:vh:1 DID: " + did);
+        }
+        return base;
     }
 
     private String baseDid(String did) {

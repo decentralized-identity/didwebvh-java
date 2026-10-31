@@ -19,7 +19,20 @@ import java.util.List;
 /** Validates the integrity of a did:webvh log chain (spec section 3.6.2). */
 public final class LogChainValidator {
 
+    /** The prefix of a did:scid in the vh:1 form: {@code did:scid:vh:1:<SCID>}. */
+    public static final String DID_SCID_VH1_PREFIX = "did:scid:vh:1:";
+
+    /** Validates a log whose entries name the DID as a did:webvh. */
     public ValidationResult validate(List<LogEntry> entries, String expectedDid) {
+        return validate(entries, expectedDid, false);
+    }
+
+    /**
+     * Validates a log; with {@code didScidIds}, one whose entries name the DID as
+     * {@code did:scid:vh:1:<SCID>}: each entry's {@code state.id} must be exactly that, with this
+     * log's SCID.
+     */
+    public ValidationResult validate(List<LogEntry> entries, String expectedDid, boolean didScidIds) {
         if (entries == null || entries.isEmpty()) {
             return ValidationResult.failure(-1, -1, "log must not be empty", null);
         }
@@ -147,7 +160,15 @@ public final class LogChainValidator {
                 // any entry whose state.id SCID differs from parameters.scid is
                 // rejected, regardless of portable / alsoKnownAs.
                 String activeScid = newActiveParams.getScid();
-                if (activeScid != null) {
+                if (didScidIds) {
+                    // The did:scid vh:1 form names no host or path, so there is nothing to move:
+                    // every entry names the same did:scid, exactly.
+                    if (!(DID_SCID_VH1_PREFIX + activeScid).equals(docId)) {
+                        return ValidationResult.failure(i - 1, i,
+                                "state.id must be " + DID_SCID_VH1_PREFIX + activeScid
+                                        + " at entry " + (i + 1), activeParams);
+                    }
+                } else if (activeScid != null) {
                     String[] parts = docId.split(":");
                     if (parts.length >= 3 && !activeScid.equals(parts[2])) {
                         return ValidationResult.failure(i - 1, i,
